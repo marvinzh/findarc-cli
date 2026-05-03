@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import sys
+from pathlib import Path
 from typing import Any
 
 import click
@@ -66,11 +67,22 @@ class JsonGroup(click.Group):
 
         for group_name, rows in rows_by_group.items():
             with formatter.section(group_name):
-                formatter.write_dl(rows)
+                self._write_group_rows(formatter, rows)
 
     @staticmethod
     def _get_full_help_text(command: click.Command) -> str:
         return " ".join((command.help or "").strip().split())
+
+    @staticmethod
+    def _write_group_rows(
+        formatter: click.HelpFormatter,
+        rows: list[tuple[str, str]],
+    ) -> None:
+        first_col = max((len(name) for name, _ in rows), default=0) + 2
+        indent = " " * formatter.current_indent
+        for name, help_text in rows:
+            padding = " " * max(first_col - len(name), 2)
+            formatter.write(f"{indent}{name}{padding}{help_text}\n")
 
 
 def get_client(ctx: click.Context):
@@ -297,12 +309,22 @@ def repost(ctx: click.Context, task_id: str) -> None:
 
 @cli.command("submit-proposal")
 @click.argument("task_id")
+@click.argument("proposal", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.pass_context
-def submit_proposal(ctx: click.Context, task_id: str) -> None:
-    """Submit a proposal for an open task (provider)."""
+def submit_proposal(ctx: click.Context, task_id: str, proposal: Path) -> None:
+    """Submit a detailed markdown proposal for an open task (provider)."""
+    if proposal.suffix.lower() != ".md":
+        error("Proposal must be a .md file.")
+    try:
+        proposal_content = proposal.read_text(encoding="utf-8")
+    except OSError as exc:
+        error(f"Failed to read proposal file: {exc}")
+    if not proposal_content.strip():
+        error("Proposal markdown file cannot be empty.")
+
     client, _ = get_client(ctx)
     with client:
-        data = client.submit_proposal(task_id)
+        data = client.submit_proposal(task_id, proposal_content)
     output(data)
 
 

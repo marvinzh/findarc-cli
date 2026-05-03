@@ -10,6 +10,7 @@ class StubClient:
     register_calls: list[tuple[str, str, str | None]] = []
     current_agent_calls = 0
     list_tasks_calls: list[tuple[str | None, int, str | None]] = []
+    submit_proposal_calls: list[tuple[str, str]] = []
 
     def __init__(self, config):
         self.config = config
@@ -52,6 +53,10 @@ class StubClient:
     ) -> dict:
         StubClient.list_tasks_calls.append((status, limit, cursor))
         return {"tasks": [], "limit": limit, "next_cursor": None}
+
+    def submit_proposal(self, task_id: str, content: str) -> dict:
+        StubClient.submit_proposal_calls.append((task_id, content))
+        return {"task_id": task_id, "content": content}
 
 
 def test_register_uses_global_server_url_override(monkeypatch):
@@ -425,6 +430,153 @@ def test_sdk_iter_tasks_follows_next_cursor(monkeypatch):
     assert tasks == [{"task_id": "TK-1"}, {"task_id": "TK-2"}, {"task_id": "TK-3"}]
 
 
+def test_sdk_submit_proposal_sends_markdown_content(monkeypatch):
+    from findarc.client import FindarcClient
+    from findarc.config import Config
+
+    client = FindarcClient(Config(api_key="KEY", server_url="http://server/v1"))
+    calls: list[tuple[str, str, dict]] = []
+
+    def fake_request(method, path, **kwargs):
+        calls.append((method, path, kwargs))
+        return {"ok": True}
+
+    monkeypatch.setattr(client, "_request", fake_request)
+
+    try:
+        result = client.submit_proposal("TK-1", "# Proposal\n\nDetailed plan.")
+    finally:
+        client.close()
+
+    assert result == {"ok": True}
+    assert calls == [
+        (
+            "POST",
+            "/tasks/TK-1/proposals",
+            {"json": {"content": "# Proposal\n\nDetailed plan."}},
+        )
+    ]
+
+
+def test_submit_proposal_reads_markdown_file(monkeypatch, tmp_path):
+    from findarc import client as client_module
+    from findarc import config as config_module
+
+    runner = CliRunner()
+    StubClient.submit_proposal_calls.clear()
+    proposal_path = tmp_path / "proposal.md"
+    proposal_path.write_text("# Proposal\n\nDetailed plan.", encoding="utf-8")
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(
+        config_module.Config,
+        "load",
+        classmethod(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
+                api_key=api_key or "KEY",
+                server_url=server_url or "http://server/v1",
+                agent_id="AI-local",
+            )
+        ),
+    )
+
+    result = runner.invoke(
+        cli,
+        [
+            "--api-key",
+            "KEY",
+            "--server-url",
+            "http://server/v1",
+            "submit-proposal",
+            "TK-1",
+            str(proposal_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert StubClient.submit_proposal_calls == [("TK-1", "# Proposal\n\nDetailed plan.")]
+    assert json.loads(result.output) == {
+        "task_id": "TK-1",
+        "content": "# Proposal\n\nDetailed plan.",
+    }
+
+
+def test_submit_proposal_requires_markdown_file(monkeypatch, tmp_path):
+    from findarc import client as client_module
+    from findarc import config as config_module
+
+    runner = CliRunner()
+    proposal_path = tmp_path / "proposal.txt"
+    proposal_path.write_text("Detailed plan.", encoding="utf-8")
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(
+        config_module.Config,
+        "load",
+        classmethod(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
+                api_key=api_key or "KEY",
+                server_url=server_url or "http://server/v1",
+                agent_id="AI-local",
+            )
+        ),
+    )
+
+    result = runner.invoke(
+        cli,
+        [
+            "--api-key",
+            "KEY",
+            "--server-url",
+            "http://server/v1",
+            "submit-proposal",
+            "TK-1",
+            str(proposal_path),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert json.loads(result.stderr) == {"error": "Proposal must be a .md file."}
+
+
+def test_submit_proposal_rejects_empty_markdown_file(monkeypatch, tmp_path):
+    from findarc import client as client_module
+    from findarc import config as config_module
+
+    runner = CliRunner()
+    proposal_path = tmp_path / "proposal.md"
+    proposal_path.write_text(" \n", encoding="utf-8")
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(
+        config_module.Config,
+        "load",
+        classmethod(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
+                api_key=api_key or "KEY",
+                server_url=server_url or "http://server/v1",
+                agent_id="AI-local",
+            )
+        ),
+    )
+
+    result = runner.invoke(
+        cli,
+        [
+            "--api-key",
+            "KEY",
+            "--server-url",
+            "http://server/v1",
+            "submit-proposal",
+            "TK-1",
+            str(proposal_path),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert json.loads(result.stderr) == {"error": "Proposal markdown file cannot be empty."}
+
+
 def test_cli_outputs_json_error_for_findarc_exceptions(monkeypatch):
     from findarc import client as client_module
     from findarc import config as config_module
@@ -508,6 +660,6 @@ def test_root_help_shows_full_command_descriptions():
     assert "Register a new agent and save credentials to ~/.finda/config.json." in result.output
     assert "List open tasks available to accept (provider view)." in result.output
     assert "Cancel an open task (requester only, no provider yet)." in result.output
-    assert "Submit a proposal for an open task (provider)." in result.output
+    assert "Submit a detailed markdown proposal for an open task (provider)." in result.output
     assert "Create a contract after a proposal has been accepted." in result.output
     assert "Submit a delivery artifact for an active contract (provider)." in result.output
