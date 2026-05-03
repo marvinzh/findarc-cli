@@ -15,6 +15,7 @@ class StubClient:
     update_proposal_calls: list[tuple[str, str]] = []
     get_proposal_calls: list[str] = []
     withdraw_proposal_calls: list[tuple[str, str | None]] = []
+    create_contract_calls: list[tuple[str, str, str, float | None]] = []
 
     def __init__(self, config):
         self.config = config
@@ -76,6 +77,23 @@ class StubClient:
     def withdraw_proposal(self, proposal_id: str, reason: str | None = None) -> dict:
         StubClient.withdraw_proposal_calls.append((proposal_id, reason))
         return {"proposal_id": proposal_id, "status": "rejected", "reason": reason}
+
+    def create_contract(
+        self,
+        task_id: str,
+        delivery_standard: str,
+        deadline: str,
+        contract_type: str = "loose",
+        price: float | None = None,
+    ) -> dict:
+        StubClient.create_contract_calls.append((task_id, delivery_standard, deadline, price))
+        return {
+            "task_id": task_id,
+            "contract_type": contract_type,
+            "delivery_standard": delivery_standard,
+            "deadline": deadline,
+            "price": price,
+        }
 
 
 def test_register_uses_global_server_url_override(monkeypatch):
@@ -890,9 +908,104 @@ def test_create_contract_help_uses_deliverables_option():
     result = runner.invoke(cli, ["create-contract", "--help"])
 
     assert result.exit_code == 0
-    assert "--deliverables TEXT" in result.output
+    assert "--deliverables FILE" in result.output
     assert "--delivery-standard" not in result.output
+    assert "deliverables.md" in result.output
     assert "2026-05-20T18:00:00+08:00" in result.output
+
+
+def test_create_contract_reads_deliverables_markdown_file(monkeypatch, tmp_path):
+    from findarc import client as client_module
+    from findarc import config as config_module
+
+    runner = CliRunner()
+    StubClient.create_contract_calls.clear()
+    deliverables_path = tmp_path / "deliverables.md"
+    deliverables_path.write_text("# Deliverables\n\nShip the API and tests.", encoding="utf-8")
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(
+        config_module.Config,
+        "load",
+        classmethod(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
+                api_key=api_key or "KEY",
+                server_url=server_url or "http://server/v1",
+                agent_id="AI-local",
+            )
+        ),
+    )
+
+    result = runner.invoke(
+        cli,
+        [
+            "--api-key",
+            "KEY",
+            "--server-url",
+            "http://server/v1",
+            "create-contract",
+            "--task-id",
+            "TK-1",
+            "--deliverables",
+            str(deliverables_path),
+            "--deadline",
+            "2026-05-20T18:00:00+08:00",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert StubClient.create_contract_calls == [
+        ("TK-1", "# Deliverables\n\nShip the API and tests.", "2026-05-20T18:00:00+08:00", None)
+    ]
+    assert json.loads(result.output) == {
+        "task_id": "TK-1",
+        "contract_type": "loose",
+        "delivery_standard": "# Deliverables\n\nShip the API and tests.",
+        "deadline": "2026-05-20T18:00:00+08:00",
+        "price": None,
+    }
+
+
+def test_create_contract_requires_markdown_deliverables_file(monkeypatch, tmp_path):
+    from findarc import client as client_module
+    from findarc import config as config_module
+
+    runner = CliRunner()
+    deliverables_path = tmp_path / "deliverables.txt"
+    deliverables_path.write_text("Ship the API and tests.", encoding="utf-8")
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(
+        config_module.Config,
+        "load",
+        classmethod(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
+                api_key=api_key or "KEY",
+                server_url=server_url or "http://server/v1",
+                agent_id="AI-local",
+            )
+        ),
+    )
+
+    result = runner.invoke(
+        cli,
+        [
+            "--api-key",
+            "KEY",
+            "--server-url",
+            "http://server/v1",
+            "create-contract",
+            "--task-id",
+            "TK-1",
+            "--deliverables",
+            str(deliverables_path),
+            "--deadline",
+            "2026-05-20T18:00:00+08:00",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert json.loads(result.stderr) == {"error": "Deliverables must be a .md file."}
 
 
 def test_main_shows_usage_body_without_json_for_missing_command(monkeypatch, capsys):

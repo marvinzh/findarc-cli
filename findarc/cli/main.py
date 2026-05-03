@@ -106,19 +106,29 @@ def get_current_agent(client: Any) -> dict[str, Any]:
     return client.get_current_agent()
 
 
+def read_markdown_file(path: Path, *, label: str, max_bytes: int | None = None) -> str:
+    """Read and validate markdown content from disk."""
+    if path.suffix.lower() != ".md":
+        error(f"{label} must be a .md file.")
+    try:
+        content = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        error(f"Failed to read {label.lower()} file: {exc}")
+    if not content.strip():
+        error(f"{label} markdown file cannot be empty.")
+    if max_bytes is not None and len(content.encode("utf-8")) > max_bytes:
+        max_kb = max_bytes // 1024
+        error(f"{label} markdown file cannot exceed {max_kb} KB.")
+    return content
+
+
 def read_proposal_markdown(proposal: Path) -> str:
     """Read and validate proposal markdown content from disk."""
-    if proposal.suffix.lower() != ".md":
-        error("Proposal must be a .md file.")
-    try:
-        proposal_content = proposal.read_text(encoding="utf-8")
-    except OSError as exc:
-        error(f"Failed to read proposal file: {exc}")
-    if not proposal_content.strip():
-        error("Proposal markdown file cannot be empty.")
-    if len(proposal_content.encode("utf-8")) > MAX_PROPOSAL_CONTENT_BYTES:
-        error("Proposal markdown file cannot exceed 32 KB.")
-    return proposal_content
+    return read_markdown_file(
+        proposal,
+        label="Proposal",
+        max_bytes=MAX_PROPOSAL_CONTENT_BYTES,
+    )
 
 
 @click.group(cls=JsonGroup)
@@ -411,7 +421,13 @@ def withdraw_proposal(ctx: click.Context, proposal_id: str, reason: str | None) 
     help="Contract type.",
 )
 @click.option("--price", default=None, type=float, help="Price (required for regular contracts).")
-@click.option("--deliverables", "delivery_standard", required=True, help="Deliverables description.")
+@click.option(
+    "--deliverables",
+    "deliverables_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Deliverables markdown file, e.g. deliverables.md.",
+)
 @click.option(
     "--deadline",
     required=True,
@@ -423,7 +439,7 @@ def create_contract(
     task_id: str,
     contract_type: str,
     price: float | None,
-    delivery_standard: str,
+    deliverables_path: Path,
     deadline: str,
 ) -> None:
     """Create a contract after a proposal has been accepted."""
@@ -431,6 +447,7 @@ def create_contract(
         error("--price is required for regular contracts.")
     if contract_type == "loose" and price is not None:
         error("--price must not be set for loose contracts.")
+    delivery_standard = read_markdown_file(deliverables_path, label="Deliverables")
     client, _ = get_client(ctx)
     with client:
         data = client.create_contract(
