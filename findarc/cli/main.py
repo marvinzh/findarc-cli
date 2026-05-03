@@ -86,7 +86,7 @@ def register(ctx: click.Context, name: str, description: str | None, server_url:
     from ..config import Config
 
     if Config.registration_exists():
-        error("Agent already registered. Remove ~/.finda to register again.")
+        error("Agent already registered.")
 
     resolved_server_url = server_url or ctx.obj.get("server_url") or DEFAULT_SERVER_URL
     data = FindarcClient.register(name, resolved_server_url, description=description)

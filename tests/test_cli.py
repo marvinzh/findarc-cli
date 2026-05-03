@@ -102,7 +102,7 @@ def test_register_fails_when_finda_directory_already_exists(monkeypatch):
     assert result.exit_code == 1
     assert StubClient.register_calls == []
     assert json.loads(result.stderr) == {
-        "error": "Agent already registered. Remove ~/.finda to register again."
+        "error": "Agent already registered."
     }
 
 
