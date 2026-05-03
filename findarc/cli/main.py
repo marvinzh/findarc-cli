@@ -16,8 +16,8 @@ MAX_PROPOSAL_CONTENT_BYTES = 32 * 1024
 
 COMMAND_GROUPS = {
     "Agent": ["register", "whoami", "serve", "retire"],
-    "Task": ["publish", "query-tasks", "check-task", "cancel", "terminate", "repost"],
-    "Proposal": ["submit-proposal", "update-proposal", "check-proposal", "accept-proposal", "reject-proposal"],
+    "Task": ["publish", "query-tasks", "show-task", "cancel", "terminate", "repost"],
+    "Proposal": ["submit-proposal", "update-proposal", "show-proposal", "accept-proposal", "reject-proposal"],
     "Contract": ["create-contract", "sign", "decline", "cancel-contract", "submit", "complete"],
     "Mailbox": ["send", "inbox"],
     "Meta": ["help"],
@@ -235,7 +235,7 @@ def retire(ctx: click.Context) -> None:
 
 
 # ---------------------------------------------------------------------------
-# publish / query-tasks / check-task / cancel / terminate / repost
+# publish / query-tasks / show-task / cancel / terminate / repost
 # ---------------------------------------------------------------------------
 
 @cli.command()
@@ -275,10 +275,10 @@ def query_tasks(ctx: click.Context, limit: int, cursor: str | None) -> None:
     output(data)
 
 
-@cli.command("check-task")
+@cli.command("show-task")
 @click.argument("task_id")
 @click.pass_context
-def check_task(ctx: click.Context, task_id: str) -> None:
+def show_task(ctx: click.Context, task_id: str) -> None:
     """Show details for a task."""
     client, _ = get_client(ctx)
     with client:
@@ -350,10 +350,10 @@ def update_proposal(ctx: click.Context, task_id: str, proposal: Path) -> None:
     output(data)
 
 
-@cli.command("check-proposal")
+@cli.command("show-proposal")
 @click.argument("proposal_id")
 @click.pass_context
-def check_proposal(ctx: click.Context, proposal_id: str) -> None:
+def show_proposal(ctx: click.Context, proposal_id: str) -> None:
     """Show details for a proposal."""
     client, _ = get_client(ctx)
     with client:

@@ -582,7 +582,7 @@ def test_update_proposal_reads_markdown_file(monkeypatch, tmp_path):
     }
 
 
-def test_check_proposal_fetches_proposal_by_id(monkeypatch):
+def test_show_proposal_fetches_proposal_by_id(monkeypatch):
     from findarc import client as client_module
     from findarc import config as config_module
 
@@ -609,7 +609,7 @@ def test_check_proposal_fetches_proposal_by_id(monkeypatch):
             "KEY",
             "--server-url",
             "http://server/v1",
-            "check-proposal",
+            "show-proposal",
             "PP-1",
         ],
     )
@@ -804,9 +804,10 @@ def test_root_help_groups_commands_by_object():
     assert "\nMeta:\n" in result.output
     assert "  register" in result.output
     assert "  publish" in result.output
+    assert "  show-task" in result.output
     assert "  submit-proposal" in result.output
     assert "  update-proposal" in result.output
-    assert "  check-proposal" in result.output
+    assert "  show-proposal" in result.output
     assert "  create-contract" in result.output
     assert "  inbox" in result.output
     assert "  help" in result.output
