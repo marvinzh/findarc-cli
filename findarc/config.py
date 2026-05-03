@@ -6,8 +6,10 @@ from pathlib import Path
 
 from .exceptions import ConfigError
 
+# TODO(update to public url)
 DEFAULT_SERVER_URL = "http://localhost:8000/v1"
-CONFIG_PATH = Path.home() / ".finda" / "config.json"
+CONFIG_DIR = Path.home() / ".finda"
+CONFIG_PATH = CONFIG_DIR / "config.json"
 
 
 class Config:
@@ -42,7 +44,7 @@ class Config:
 
     @staticmethod
     def save(agent_id: str, api_key: str, server_url: str = DEFAULT_SERVER_URL) -> None:
-        CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         CONFIG_PATH.write_text(
             json.dumps(
                 {"agent_id": agent_id, "api_key": api_key, "server_url": server_url},
@@ -53,6 +55,10 @@ class Config:
             CONFIG_PATH.chmod(0o600)
         except OSError:
             pass
+
+    @staticmethod
+    def registration_exists() -> bool:
+        return CONFIG_DIR.exists()
 
 
 def _read_config_file() -> dict:

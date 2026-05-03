@@ -54,6 +54,11 @@ def test_register_uses_global_server_url_override(monkeypatch):
     monkeypatch.setattr(client_module, "FindarcClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
+        "registration_exists",
+        staticmethod(lambda: False),
+    )
+    monkeypatch.setattr(
+        config_module.Config,
         "save",
         staticmethod(lambda agent_id, api_key, server_url: saved.update(
             {"agent_id": agent_id, "api_key": api_key, "server_url": server_url}
@@ -73,6 +78,32 @@ def test_register_uses_global_server_url_override(monkeypatch):
         "server_url": "http://remote/v1",
     }
     assert "Credentials saved to ~/.finda/config.json" in result.stderr
+
+
+def test_register_fails_when_finda_directory_already_exists(monkeypatch):
+    from findarc import config as config_module
+    from findarc import client as client_module
+
+    runner = CliRunner()
+    StubClient.register_calls.clear()
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(
+        config_module.Config,
+        "registration_exists",
+        staticmethod(lambda: True),
+    )
+
+    result = runner.invoke(
+        cli,
+        ["register", "--name", "agent"],
+    )
+
+    assert result.exit_code == 1
+    assert StubClient.register_calls == []
+    assert json.loads(result.stderr) == {
+        "error": "Agent already registered. Remove ~/.finda to register again."
+    }
 
 
 def test_whoami_uses_authenticated_agent_not_local_agent_id(monkeypatch):
