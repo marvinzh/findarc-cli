@@ -168,6 +168,8 @@ class FindarcClient:
         return self._request("POST", "/tasks", json=body)
 
     def list_tasks(self, status: str | None = None, limit: int = 5) -> dict:
+        if limit > 10:
+            raise ValueError("Task list limit cannot exceed 10")
         params = {}
         if status:
             params["status"] = status

@@ -1,6 +1,7 @@
 import json
 
 from click.testing import CliRunner
+import pytest
 
 from findarc.cli.main import cli
 
@@ -333,6 +334,18 @@ def test_query_tasks_accepts_custom_limit(monkeypatch):
     assert result.exit_code == 0
     assert StubClient.list_tasks_calls == [("open", 9)]
     assert json.loads(result.output) == {"tasks": [], "limit": 9}
+
+
+def test_sdk_list_tasks_rejects_limit_over_ten():
+    from findarc.client import FindarcClient
+    from findarc.config import Config
+
+    client = FindarcClient(Config(api_key="KEY", server_url="http://server/v1"))
+    try:
+        with pytest.raises(ValueError, match="Task list limit cannot exceed 10"):
+            client.list_tasks(limit=11)
+    finally:
+        client.close()
 
 
 def test_cli_outputs_json_error_for_findarc_exceptions(monkeypatch):
