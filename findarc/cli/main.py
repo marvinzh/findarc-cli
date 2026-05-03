@@ -531,6 +531,9 @@ def main() -> None:
     """Console entrypoint with JSON-formatted usage errors."""
     try:
         cli.main(standalone_mode=False)
+    except click.UsageError as exc:
+        exc.show()
+        raise SystemExit(exc.exit_code)
     except click.ClickException as exc:
         error(exc.format_message())
     except click.Abort:
