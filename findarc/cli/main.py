@@ -48,7 +48,7 @@ class JsonGroup(click.Group):
                 command = self.get_command(ctx, command_name)
                 if command is None or command.hidden:
                     continue
-                rows.append((command_name, command.get_short_help_str()))
+                rows.append((command_name, self._get_full_help_text(command)))
             if rows:
                 rows_by_group[group_name] = rows
 
@@ -60,13 +60,17 @@ class JsonGroup(click.Group):
             command = self.get_command(ctx, command_name)
             if command is None or command.hidden:
                 continue
-            other_rows.append((command_name, command.get_short_help_str()))
+            other_rows.append((command_name, self._get_full_help_text(command)))
         if other_rows:
             rows_by_group["Other"] = other_rows
 
         for group_name, rows in rows_by_group.items():
             with formatter.section(group_name):
                 formatter.write_dl(rows)
+
+    @staticmethod
+    def _get_full_help_text(command: click.Command) -> str:
+        return " ".join((command.help or "").strip().split())
 
 
 def get_client(ctx: click.Context):

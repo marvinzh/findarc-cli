@@ -497,3 +497,17 @@ def test_root_help_groups_commands_by_object():
     assert "  create-contract" in result.output
     assert "  inbox" in result.output
     assert "  help" in result.output
+
+
+def test_root_help_shows_full_command_descriptions():
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["--config", "~/.finda", "help"])
+
+    assert result.exit_code == 0
+    assert "Register a new agent and save credentials to ~/.finda/config.json." in result.output
+    assert "List open tasks available to accept (provider view)." in result.output
+    assert "Cancel an open task (requester only, no provider yet)." in result.output
+    assert "Submit a proposal for an open task (provider)." in result.output
+    assert "Create a contract after a proposal has been accepted." in result.output
+    assert "Submit a delivery artifact for an active contract (provider)." in result.output
