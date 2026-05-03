@@ -1,5 +1,6 @@
 import json
 import sys
+from pathlib import Path
 
 from click.testing import CliRunner
 import pytest
@@ -124,6 +125,13 @@ class StubClient:
             "delivery_standard": delivery_standard,
             "deadline": deadline,
             "price": price,
+        }
+
+    def submit_delivery(self, contract_id: str, content: str, artifact_zip: Path) -> dict:
+        return {
+            "contract_id": contract_id,
+            "content": content,
+            "artifact_filename": artifact_zip.name,
         }
 
 
@@ -1038,10 +1046,69 @@ def test_submit_help_uses_message_and_zip_artifact_option():
 
     assert result.exit_code == 0
     assert "--message TEXT" in result.output
-    assert "--artifact-zip-url TEXT" in result.output
+    assert "--artifact-zip FILE" in result.output
     assert "--content" not in result.output
-    assert "--artifact-url" not in result.output
+    assert "--artifact-zip-url" not in result.output
     assert "delivery.zip" in result.output
+
+
+def test_sdk_submit_delivery_rejects_non_zip_file(tmp_path):
+    from findarc.client import FindarcClient
+    from findarc.config import Config
+
+    artifact_path = tmp_path / "delivery.txt"
+    artifact_path.write_text("not a zip", encoding="utf-8")
+    client = FindarcClient(Config(api_key="KEY", server_url="http://server/v1"))
+    try:
+        with pytest.raises(ValueError, match="Artifact file must be a .zip file"):
+            client.submit_delivery("CT-1", content="Done", artifact_zip=artifact_path)
+    finally:
+        client.close()
+
+
+def test_submit_uploads_zip_artifact(monkeypatch, tmp_path):
+    from findarc import client as client_module
+    from findarc import config as config_module
+
+    runner = CliRunner()
+    artifact_path = tmp_path / "delivery.zip"
+    artifact_path.write_bytes(b"zip-bytes")
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(
+        config_module.Config,
+        "load",
+        classmethod(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
+                api_key=api_key or "KEY",
+                server_url=server_url or "http://server/v1",
+                agent_id="AI-local",
+            )
+        ),
+    )
+
+    result = runner.invoke(
+        cli,
+        [
+            "--api-key",
+            "KEY",
+            "--server-url",
+            "http://server/v1",
+            "submit",
+            "CT-1",
+            "--message",
+            "Final delivery package",
+            "--artifact-zip",
+            str(artifact_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.output) == {
+        "contract_id": "CT-1",
+        "content": "Final delivery package",
+        "artifact_filename": "delivery.zip",
+    }
 
 
 def test_create_contract_help_uses_deliverables_option():

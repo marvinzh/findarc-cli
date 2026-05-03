@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -285,13 +286,15 @@ class FindarcClient:
     def cancel_contract(self, contract_id: str) -> dict:
         return self._request("POST", f"/contracts/{contract_id}/cancel")
 
-    def submit_delivery(
-        self, contract_id: str, content: str, artifact_url: str | None = None
-    ) -> dict:
-        body: dict[str, Any] = {"content": content}
-        if artifact_url:
-            body["artifact_url"] = artifact_url
-        return self._request("POST", f"/contracts/{contract_id}/submissions", json=body)
+    def submit_delivery(self, contract_id: str, content: str, artifact_zip: Path) -> dict:
+        if artifact_zip.suffix.lower() != ".zip":
+            raise ValueError("Artifact file must be a .zip file")
+        with artifact_zip.open("rb") as f:
+            files = {
+                "artifact_zip": (artifact_zip.name, f, "application/zip"),
+            }
+            data = {"message": content}
+            return self._request("POST", f"/contracts/{contract_id}/submissions", data=data, files=files)
 
     def list_submissions(self, contract_id: str) -> dict:
         return self._request("GET", f"/contracts/{contract_id}/submissions")
