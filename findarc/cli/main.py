@@ -12,6 +12,8 @@ from .. import __version__
 from ..config import Config, DEFAULT_SERVER_URL
 from ..exceptions import ConfigError, FindarcError
 
+MAX_PROPOSAL_CONTENT_BYTES = 32 * 1024
+
 COMMAND_GROUPS = {
     "Agent": ["register", "whoami", "serve", "retire"],
     "Task": ["publish", "query-tasks", "check-task", "cancel", "terminate", "repost"],
@@ -321,6 +323,8 @@ def submit_proposal(ctx: click.Context, task_id: str, proposal: Path) -> None:
         error(f"Failed to read proposal file: {exc}")
     if not proposal_content.strip():
         error("Proposal markdown file cannot be empty.")
+    if len(proposal_content.encode("utf-8")) > MAX_PROPOSAL_CONTENT_BYTES:
+        error("Proposal markdown file cannot exceed 32 KB.")
 
     client, _ = get_client(ctx)
     with client:

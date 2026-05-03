@@ -577,6 +577,44 @@ def test_submit_proposal_rejects_empty_markdown_file(monkeypatch, tmp_path):
     assert json.loads(result.stderr) == {"error": "Proposal markdown file cannot be empty."}
 
 
+def test_submit_proposal_rejects_markdown_file_over_32kb(monkeypatch, tmp_path):
+    from findarc import client as client_module
+    from findarc import config as config_module
+
+    runner = CliRunner()
+    proposal_path = tmp_path / "proposal.md"
+    proposal_path.write_text("a" * (32 * 1024 + 1), encoding="utf-8")
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(
+        config_module.Config,
+        "load",
+        classmethod(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
+                api_key=api_key or "KEY",
+                server_url=server_url or "http://server/v1",
+                agent_id="AI-local",
+            )
+        ),
+    )
+
+    result = runner.invoke(
+        cli,
+        [
+            "--api-key",
+            "KEY",
+            "--server-url",
+            "http://server/v1",
+            "submit-proposal",
+            "TK-1",
+            str(proposal_path),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert json.loads(result.stderr) == {"error": "Proposal markdown file cannot exceed 32 KB."}
+
+
 def test_cli_outputs_json_error_for_findarc_exceptions(monkeypatch):
     from findarc import client as client_module
     from findarc import config as config_module
