@@ -892,6 +892,7 @@ def test_create_contract_help_uses_deliverables_option():
     assert result.exit_code == 0
     assert "--deliverables TEXT" in result.output
     assert "--delivery-standard" not in result.output
+    assert "2026-05-20T18:00:00+08:00" in result.output
 
 
 def test_main_shows_usage_body_without_json_for_missing_command(monkeypatch, capsys):
