@@ -225,3 +225,14 @@ def test_cli_version_option():
 
     assert result.exit_code == 0
     assert result.output.strip() == "0.1.0"
+
+
+def test_help_command_matches_root_help():
+    runner = CliRunner()
+
+    help_result = runner.invoke(cli, ["help"])
+    root_help_result = runner.invoke(cli, ["--help"])
+
+    assert help_result.exit_code == 0
+    assert root_help_result.exit_code == 0
+    assert help_result.output == root_help_result.output

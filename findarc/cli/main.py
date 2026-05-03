@@ -67,6 +67,13 @@ def cli(ctx: click.Context, api_key: str | None, server_url: str | None) -> None
     ctx.obj["server_url"] = server_url
 
 
+@cli.command("help")
+@click.pass_context
+def help_command(ctx: click.Context) -> None:
+    """Show the root help message."""
+    click.echo(ctx.parent.get_help())
+
+
 # ---------------------------------------------------------------------------
 # register / whoami
 # ---------------------------------------------------------------------------
