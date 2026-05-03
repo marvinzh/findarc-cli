@@ -1,6 +1,7 @@
 """FindarcClient — synchronous HTTP SDK wrapping the findarc Server API."""
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Any
 
 import httpx
@@ -167,14 +168,31 @@ class FindarcClient:
             body["budget"] = budget
         return self._request("POST", "/tasks", json=body)
 
-    def list_tasks(self, status: str | None = None, limit: int = 5) -> dict:
+    def list_tasks(
+        self,
+        status: str | None = None,
+        limit: int = 5,
+        cursor: str | None = None,
+    ) -> dict:
         if limit > 10:
             raise ValueError("Task list limit cannot exceed 10")
         params = {}
         if status:
             params["status"] = status
         params["limit"] = limit
+        if cursor:
+            params["cursor"] = cursor
         return self._request("GET", "/tasks", params=params)
+
+    def iter_tasks(self, status: str | None = None, limit: int = 5) -> Iterator[dict]:
+        cursor = None
+        while True:
+            page = self.list_tasks(status=status, limit=limit, cursor=cursor)
+            for task in page.get("tasks", []):
+                yield task
+            cursor = page.get("next_cursor")
+            if not cursor:
+                break
 
     def get_task(self, task_id: str) -> dict:
         return self._request("GET", f"/tasks/{task_id}")

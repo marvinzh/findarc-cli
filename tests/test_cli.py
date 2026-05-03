@@ -9,7 +9,7 @@ from findarc.cli.main import cli
 class StubClient:
     register_calls: list[tuple[str, str, str | None]] = []
     current_agent_calls = 0
-    list_tasks_calls: list[tuple[str | None, int]] = []
+    list_tasks_calls: list[tuple[str | None, int, str | None]] = []
 
     def __init__(self, config):
         self.config = config
@@ -44,9 +44,14 @@ class StubClient:
     def retire_provider(self, agent_id: str) -> dict:
         return {"agent_id": agent_id, "role": "requester"}
 
-    def list_tasks(self, status: str | None = None, limit: int = 5) -> dict:
-        StubClient.list_tasks_calls.append((status, limit))
-        return {"tasks": [], "limit": limit}
+    def list_tasks(
+        self,
+        status: str | None = None,
+        limit: int = 5,
+        cursor: str | None = None,
+    ) -> dict:
+        StubClient.list_tasks_calls.append((status, limit, cursor))
+        return {"tasks": [], "limit": limit, "next_cursor": None}
 
 
 def test_register_uses_global_server_url_override(monkeypatch):
@@ -302,8 +307,8 @@ def test_query_tasks_uses_default_limit_of_five(monkeypatch):
     )
 
     assert result.exit_code == 0
-    assert StubClient.list_tasks_calls == [("open", 5)]
-    assert json.loads(result.output) == {"tasks": [], "limit": 5}
+    assert StubClient.list_tasks_calls == [("open", 5, None)]
+    assert json.loads(result.output) == {"tasks": [], "limit": 5, "next_cursor": None}
 
 
 def test_query_tasks_accepts_custom_limit(monkeypatch):
@@ -332,8 +337,48 @@ def test_query_tasks_accepts_custom_limit(monkeypatch):
     )
 
     assert result.exit_code == 0
-    assert StubClient.list_tasks_calls == [("open", 9)]
-    assert json.loads(result.output) == {"tasks": [], "limit": 9}
+    assert StubClient.list_tasks_calls == [("open", 9, None)]
+    assert json.loads(result.output) == {"tasks": [], "limit": 9, "next_cursor": None}
+
+
+def test_query_tasks_accepts_cursor(monkeypatch):
+    from findarc import client as client_module
+    from findarc import config as config_module
+
+    runner = CliRunner()
+    StubClient.list_tasks_calls.clear()
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(
+        config_module.Config,
+        "load",
+        classmethod(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
+                api_key=api_key or "KEY",
+                server_url=server_url or "http://server/v1",
+                agent_id="AI-local",
+            )
+        ),
+    )
+
+    result = runner.invoke(
+        cli,
+        [
+            "--api-key",
+            "KEY",
+            "--server-url",
+            "http://server/v1",
+            "query-tasks",
+            "--limit",
+            "4",
+            "--cursor",
+            "TK-cursor",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert StubClient.list_tasks_calls == [("open", 4, "TK-cursor")]
+    assert json.loads(result.output) == {"tasks": [], "limit": 4, "next_cursor": None}
 
 
 def test_sdk_list_tasks_rejects_limit_over_ten():
@@ -346,6 +391,38 @@ def test_sdk_list_tasks_rejects_limit_over_ten():
             client.list_tasks(limit=11)
     finally:
         client.close()
+
+
+def test_sdk_iter_tasks_follows_next_cursor(monkeypatch):
+    from findarc.client import FindarcClient
+    from findarc.config import Config
+
+    client = FindarcClient(Config(api_key="KEY", server_url="http://server/v1"))
+    calls: list[tuple[str | None, int, str | None]] = []
+
+    def fake_list_tasks(status=None, limit=5, cursor=None):
+        calls.append((status, limit, cursor))
+        if cursor is None:
+            return {
+                "tasks": [{"task_id": "TK-1"}, {"task_id": "TK-2"}],
+                "limit": limit,
+                "next_cursor": "TK-2",
+            }
+        return {
+            "tasks": [{"task_id": "TK-3"}],
+            "limit": limit,
+            "next_cursor": None,
+        }
+
+    monkeypatch.setattr(client, "list_tasks", fake_list_tasks)
+
+    try:
+        tasks = list(client.iter_tasks(status="open", limit=2))
+    finally:
+        client.close()
+
+    assert calls == [("open", 2, None), ("open", 2, "TK-2")]
+    assert tasks == [{"task_id": "TK-1"}, {"task_id": "TK-2"}, {"task_id": "TK-3"}]
 
 
 def test_cli_outputs_json_error_for_findarc_exceptions(monkeypatch):
