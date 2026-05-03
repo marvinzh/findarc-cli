@@ -1031,6 +1031,19 @@ def test_root_help_shows_full_command_descriptions():
     assert "Submit a delivery artifact for an active contract (provider)." in result.output
 
 
+def test_submit_help_uses_message_and_zip_artifact_option():
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["submit", "--help"])
+
+    assert result.exit_code == 0
+    assert "--message TEXT" in result.output
+    assert "--artifact-zip-url TEXT" in result.output
+    assert "--content" not in result.output
+    assert "--artifact-url" not in result.output
+    assert "delivery.zip" in result.output
+
+
 def test_create_contract_help_uses_deliverables_option():
     runner = CliRunner()
 

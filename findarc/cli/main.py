@@ -524,14 +524,27 @@ def cancel_contract(ctx: click.Context, contract_id: str) -> None:
 
 @cli.command()
 @click.argument("contract_id")
-@click.option("--content", required=True, help="Delivery description.")
-@click.option("--artifact-url", default=None, help="URL to the delivery artifact.")
+@click.option("--message", required=True, help="Submission message.")
+@click.option(
+    "--artifact-zip-url",
+    default=None,
+    help="URL to the submitted ZIP artifact, e.g. https://example.com/delivery.zip.",
+)
 @click.pass_context
-def submit(ctx: click.Context, contract_id: str, content: str, artifact_url: str | None) -> None:
+def submit(
+    ctx: click.Context,
+    contract_id: str,
+    message: str,
+    artifact_zip_url: str | None,
+) -> None:
     """Submit a delivery artifact for an active contract (provider)."""
     client, _ = get_client(ctx)
     with client:
-        data = client.submit_delivery(contract_id, content=content, artifact_url=artifact_url)
+        data = client.submit_delivery(
+            contract_id,
+            content=message,
+            artifact_url=artifact_zip_url,
+        )
     output(data)
 
 
