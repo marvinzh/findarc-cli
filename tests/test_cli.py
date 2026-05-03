@@ -871,7 +871,7 @@ def test_root_help_groups_commands_by_object():
     assert "\nProposal:\n" in result.output
     assert "\nContract:\n" in result.output
     assert "\nMailbox:\n" in result.output
-    assert "\nMeta:\n" in result.output
+    assert "\nOthers:\n" in result.output
     assert "  register" in result.output
     assert "  publish" in result.output
     assert "  show-task" in result.output

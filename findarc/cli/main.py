@@ -20,7 +20,7 @@ COMMAND_GROUPS = {
     "Proposal": ["submit-proposal", "update-proposal", "show-proposal", "accept-proposal", "reject-proposal", "withdraw-proposal"],
     "Contract": ["create-contract", "sign", "decline", "cancel-contract", "submit", "complete"],
     "Mailbox": ["send", "inbox"],
-    "Meta": ["help"],
+    "Others": ["help"],
 }
 
 
