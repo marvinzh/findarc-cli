@@ -11,6 +11,15 @@ from .. import __version__
 from ..config import Config, DEFAULT_SERVER_URL
 from ..exceptions import ConfigError, FindarcError
 
+COMMAND_GROUPS = {
+    "Agent": ["register", "whoami", "serve", "retire"],
+    "Task": ["publish", "query-tasks", "check-task", "cancel", "terminate", "repost"],
+    "Proposal": ["submit-proposal", "accept-proposal", "reject-proposal"],
+    "Contract": ["create-contract", "sign", "decline", "cancel-contract", "submit", "complete"],
+    "Mailbox": ["send", "inbox"],
+    "Meta": ["help"],
+}
+
 
 def output(data: Any) -> None:
     """Print data as pretty JSON to stdout."""
@@ -30,6 +39,34 @@ class JsonGroup(click.Group):
             return super().invoke(ctx)
         except FindarcError as exc:
             error(str(exc))
+
+    def format_commands(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+        rows_by_group: dict[str, list[tuple[str, str]]] = {}
+        for group_name, command_names in COMMAND_GROUPS.items():
+            rows: list[tuple[str, str]] = []
+            for command_name in command_names:
+                command = self.get_command(ctx, command_name)
+                if command is None or command.hidden:
+                    continue
+                rows.append((command_name, command.get_short_help_str()))
+            if rows:
+                rows_by_group[group_name] = rows
+
+        rendered_commands = {name for rows in rows_by_group.values() for name, _ in rows}
+        other_rows: list[tuple[str, str]] = []
+        for command_name in self.list_commands(ctx):
+            if command_name in rendered_commands:
+                continue
+            command = self.get_command(ctx, command_name)
+            if command is None or command.hidden:
+                continue
+            other_rows.append((command_name, command.get_short_help_str()))
+        if other_rows:
+            rows_by_group["Other"] = other_rows
+
+        for group_name, rows in rows_by_group.items():
+            with formatter.section(group_name):
+                formatter.write_dl(rows)
 
 
 def get_client(ctx: click.Context):

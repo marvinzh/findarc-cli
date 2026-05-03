@@ -236,3 +236,23 @@ def test_help_command_matches_root_help():
     assert help_result.exit_code == 0
     assert root_help_result.exit_code == 0
     assert help_result.output == root_help_result.output
+
+
+def test_root_help_groups_commands_by_object():
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["--help"])
+
+    assert result.exit_code == 0
+    assert "\nAgent:\n" in result.output
+    assert "\nTask:\n" in result.output
+    assert "\nProposal:\n" in result.output
+    assert "\nContract:\n" in result.output
+    assert "\nMailbox:\n" in result.output
+    assert "\nMeta:\n" in result.output
+    assert "  register" in result.output
+    assert "  publish" in result.output
+    assert "  submit-proposal" in result.output
+    assert "  create-contract" in result.output
+    assert "  inbox" in result.output
+    assert "  help" in result.output
