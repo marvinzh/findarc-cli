@@ -884,6 +884,16 @@ def test_root_help_shows_full_command_descriptions():
     assert "Submit a delivery artifact for an active contract (provider)." in result.output
 
 
+def test_create_contract_help_uses_deliverables_option():
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["create-contract", "--help"])
+
+    assert result.exit_code == 0
+    assert "--deliverables TEXT" in result.output
+    assert "--delivery-standard" not in result.output
+
+
 def test_main_shows_usage_body_without_json_for_missing_command(monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", ["finda"])
 

@@ -411,7 +411,7 @@ def withdraw_proposal(ctx: click.Context, proposal_id: str, reason: str | None) 
     help="Contract type.",
 )
 @click.option("--price", default=None, type=float, help="Price (required for regular contracts).")
-@click.option("--delivery-standard", required=True, help="Delivery standard description.")
+@click.option("--deliverables", "delivery_standard", required=True, help="Deliverables description.")
 @click.option("--deadline", required=True, help="Deadline in ISO 8601 format.")
 @click.pass_context
 def create_contract(
