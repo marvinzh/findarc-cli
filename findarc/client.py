@@ -6,7 +6,7 @@ from typing import Any
 import httpx
 
 from .config import Config
-from .exceptions import APIError, AuthError, NotFoundError
+from .exceptions import APIError, AuthError, NetworkError, NotFoundError
 from .exceptions import PermissionError as FindarcPermissionError
 
 
@@ -35,11 +35,17 @@ class FindarcClient:
     # ------------------------------------------------------------------
 
     def _request(self, method: str, path: str, **kwargs: Any) -> Any:
-        resp = self._http.request(method, path, **kwargs)
+        try:
+            resp = self._http.request(method, path, **kwargs)
+        except httpx.HTTPError as exc:
+            raise NetworkError(f"Request failed: {exc}") from exc
         self._raise_for_status(resp)
         if resp.status_code == 204:
             return None
-        return resp.json()
+        try:
+            return resp.json()
+        except ValueError as exc:
+            raise APIError(resp.status_code, "Server returned invalid JSON") from exc
 
     @staticmethod
     def _raise_for_status(resp: httpx.Response) -> None:
@@ -64,18 +70,27 @@ class FindarcClient:
     @staticmethod
     def register(name: str, server_url: str, description: str | None = None) -> dict:
         """Register a new agent (no auth required)."""
-        with httpx.Client(base_url=server_url, timeout=30) as http:
-            resp = http.post(
-                "/agents/register",
-                json={"name": name, **({"description": description} if description else {})},
-            )
-            if resp.status_code >= 400:
-                try:
-                    detail = resp.json().get("detail", resp.text)
-                except Exception:
-                    detail = resp.text
-                raise APIError(resp.status_code, detail)
+        try:
+            with httpx.Client(base_url=server_url, timeout=30) as http:
+                resp = http.post(
+                    "/agents/register",
+                    json={"name": name, **({"description": description} if description else {})},
+                )
+        except httpx.HTTPError as exc:
+            raise NetworkError(f"Request failed: {exc}") from exc
+        if resp.status_code >= 400:
+            try:
+                detail = resp.json().get("detail", resp.text)
+            except Exception:
+                detail = resp.text
+            raise APIError(resp.status_code, detail)
+        try:
             return resp.json()
+        except ValueError as exc:
+            raise APIError(resp.status_code, "Server returned invalid JSON") from exc
+
+    def get_current_agent(self) -> dict:
+        return self._request("GET", "/agents/me")
 
     def get_agent(self, agent_id: str) -> dict:
         return self._request("GET", f"/agents/{agent_id}")
@@ -105,11 +120,31 @@ class FindarcClient:
         }
         return self._request("PUT", f"/agents/{agent_id}", json=body)
 
+    def delete_agent(self, agent_id: str) -> dict:
+        return self._request("DELETE", f"/agents/{agent_id}")
+
     def become_provider(self, agent_id: str, tags: list[str], models: list[str] | None = None) -> dict:
         body: dict[str, Any] = {"tags": tags}
         if models:
             body["models"] = models
         return self._request("POST", f"/agents/{agent_id}/provider", json=body)
+
+    def update_provider(
+        self,
+        agent_id: str,
+        *,
+        tags: list[str] | None = None,
+        models: list[str] | None = None,
+    ) -> dict:
+        body = {
+            k: v
+            for k, v in {
+                "tags": tags,
+                "models": models,
+            }.items()
+            if v is not None
+        }
+        return self._request("PUT", f"/agents/{agent_id}/provider", json=body)
 
     def retire_provider(self, agent_id: str) -> dict:
         return self._request("DELETE", f"/agents/{agent_id}/provider")
@@ -228,6 +263,9 @@ class FindarcClient:
 
     def complete_contract(self, contract_id: str) -> dict:
         return self._request("POST", f"/contracts/{contract_id}/complete")
+
+    def create_dispute(self, contract_id: str, reason: str) -> dict:
+        return self._request("POST", f"/contracts/{contract_id}/dispute", json={"reason": reason})
 
     # ------------------------------------------------------------------
     # Mailbox

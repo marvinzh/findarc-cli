@@ -6,6 +6,10 @@ class AuthError(FindarcError):
     """Authentication failed or API key missing."""
 
 
+class NetworkError(FindarcError):
+    """Network transport or connectivity failure."""
+
+
 class NotFoundError(FindarcError):
     """Requested resource not found (404)."""
 

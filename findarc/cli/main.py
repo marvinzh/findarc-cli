@@ -7,6 +7,7 @@ from typing import Any
 
 import click
 
+from .. import __version__
 from ..config import Config, DEFAULT_SERVER_URL
 from ..exceptions import ConfigError, FindarcError
 
@@ -19,6 +20,16 @@ def output(data: Any) -> None:
 def error(msg: str) -> None:
     click.echo(json.dumps({"error": msg}, ensure_ascii=False), err=True)
     sys.exit(1)
+
+
+class JsonGroup(click.Group):
+    """Render handled runtime failures as JSON instead of tracebacks."""
+
+    def invoke(self, ctx: click.Context) -> Any:
+        try:
+            return super().invoke(ctx)
+        except FindarcError as exc:
+            error(str(exc))
 
 
 def get_client(ctx: click.Context):
@@ -34,7 +45,12 @@ def get_client(ctx: click.Context):
     return FindarcClient(cfg), cfg
 
 
-@click.group()
+def get_current_agent(client: Any) -> dict[str, Any]:
+    """Resolve the current authenticated agent from the API key."""
+    return client.get_current_agent()
+
+
+@click.group(cls=JsonGroup)
 @click.option("--api-key", envvar="FINDARC_API_KEY", default=None, help="API key override.")
 @click.option(
     "--server-url",
@@ -42,6 +58,7 @@ def get_client(ctx: click.Context):
     default=None,
     help="Server base URL override.",
 )
+@click.version_option(version=__version__, prog_name="findarc", message="%(version)s")
 @click.pass_context
 def cli(ctx: click.Context, api_key: str | None, server_url: str | None) -> None:
     """findarc — Agent Marketplace CLI."""
@@ -51,32 +68,30 @@ def cli(ctx: click.Context, api_key: str | None, server_url: str | None) -> None
 
 
 # ---------------------------------------------------------------------------
-# login / whoami
+# register / whoami
 # ---------------------------------------------------------------------------
 
-@cli.command()
+@cli.command("register")
 @click.option("--name", required=True, help="Agent name.")
 @click.option("--description", default=None, help="Agent description.")
 @click.option(
     "--server-url",
-    default=DEFAULT_SERVER_URL,
-    show_default=True,
-    help="Server base URL.",
+    default=None,
+    help="Server base URL override for registration.",
 )
-def login(name: str, description: str | None, server_url: str) -> None:
-    """Register a new agent and save credentials to ~/.findarc/config.json."""
+@click.pass_context
+def register(ctx: click.Context, name: str, description: str | None, server_url: str | None) -> None:
+    """Register a new agent and save credentials to ~/.finda/config.json."""
     from ..client import FindarcClient
     from ..config import Config
 
-    try:
-        data = FindarcClient.register(name, server_url, description=description)
-    except FindarcError as e:
-        error(str(e))
+    resolved_server_url = server_url or ctx.obj.get("server_url") or DEFAULT_SERVER_URL
+    data = FindarcClient.register(name, resolved_server_url, description=description)
 
-    Config.save(data["agent_id"], data["api_key"], server_url)
+    Config.save(data["agent_id"], data["api_key"], resolved_server_url)
     output(data)
     click.echo(
-        f"\nCredentials saved to ~/.findarc/config.json", err=True
+        f"\nCredentials saved to ~/.finda/config.json", err=True
     )
 
 
@@ -84,11 +99,9 @@ def login(name: str, description: str | None, server_url: str) -> None:
 @click.pass_context
 def whoami(ctx: click.Context) -> None:
     """Show current agent information."""
-    client, cfg = get_client(ctx)
+    client, _ = get_client(ctx)
     with client:
-        if not cfg.agent_id:
-            error("agent_id not found in config. Re-run `findarc login`.")
-        data = client.get_agent(cfg.agent_id)
+        data = get_current_agent(client)
     output(data)
 
 
@@ -102,13 +115,12 @@ def whoami(ctx: click.Context) -> None:
 @click.pass_context
 def serve(ctx: click.Context, tags: str, models: str | None) -> None:
     """Upgrade to provider and list capabilities."""
-    client, cfg = get_client(ctx)
+    client, _ = get_client(ctx)
     tag_list = [t.strip() for t in tags.split(",") if t.strip()]
     model_list = [m.strip() for m in models.split(",") if m.strip()] if models else None
     with client:
-        if not cfg.agent_id:
-            error("agent_id not found in config. Re-run `findarc login`.")
-        data = client.become_provider(cfg.agent_id, tags=tag_list, models=model_list)
+        agent = get_current_agent(client)
+        data = client.become_provider(agent["agent_id"], tags=tag_list, models=model_list)
     output(data)
 
 
@@ -116,11 +128,10 @@ def serve(ctx: click.Context, tags: str, models: str | None) -> None:
 @click.pass_context
 def retire(ctx: click.Context) -> None:
     """Cancel provider status."""
-    client, cfg = get_client(ctx)
+    client, _ = get_client(ctx)
     with client:
-        if not cfg.agent_id:
-            error("agent_id not found in config. Re-run `findarc login`.")
-        data = client.retire_provider(cfg.agent_id)
+        agent = get_current_agent(client)
+        data = client.retire_provider(agent["agent_id"])
     output(data)
 
 
@@ -375,3 +386,17 @@ def inbox(ctx: click.Context, unread: bool, task_id: str | None, cursor: str | N
     with client:
         data = client.get_inbox(unread=unread, task_id=task_id, cursor=cursor)
     output(data)
+
+
+def main() -> None:
+    """Console entrypoint with JSON-formatted usage errors."""
+    try:
+        cli.main(standalone_mode=False)
+    except click.ClickException as exc:
+        error(exc.format_message())
+    except click.Abort:
+        error("Aborted.")
+
+
+if __name__ == "__main__":
+    main()

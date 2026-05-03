@@ -7,7 +7,7 @@ from pathlib import Path
 from .exceptions import ConfigError
 
 DEFAULT_SERVER_URL = "http://localhost:8000/v1"
-CONFIG_PATH = Path.home() / ".findarc" / "config.json"
+CONFIG_PATH = Path.home() / ".finda" / "config.json"
 
 
 class Config:
@@ -19,26 +19,24 @@ class Config:
     @classmethod
     def load(cls, api_key: str | None = None, server_url: str | None = None) -> "Config":
         """Load config with priority: param > env > file."""
-        resolved_key = api_key or os.environ.get("FINDARC_API_KEY")
-        resolved_url = server_url or os.environ.get("FINDARC_SERVER_URL")
-        agent_id: str | None = None
-
-        if not resolved_key or not resolved_url:
-            file_data = _read_config_file()
-            if not resolved_key:
-                resolved_key = file_data.get("api_key")
-            if not resolved_url:
-                resolved_url = file_data.get("server_url", DEFAULT_SERVER_URL)
-            agent_id = file_data.get("agent_id")
+        file_data = _read_config_file()
+        resolved_key = api_key or os.environ.get("FINDARC_API_KEY") or file_data.get("api_key")
+        resolved_url = (
+            server_url
+            or os.environ.get("FINDARC_SERVER_URL")
+            or file_data.get("server_url")
+            or DEFAULT_SERVER_URL
+        )
+        agent_id = file_data.get("agent_id")
 
         if not resolved_key:
             raise ConfigError(
-                "No API key found. Run `findarc login` or set FINDARC_API_KEY."
+                "No API key found. Run `findarc register` or set FINDARC_API_KEY."
             )
 
         return cls(
             api_key=resolved_key,
-            server_url=resolved_url or DEFAULT_SERVER_URL,
+            server_url=resolved_url,
             agent_id=agent_id,
         )
 
@@ -51,6 +49,10 @@ class Config:
                 indent=2,
             )
         )
+        try:
+            CONFIG_PATH.chmod(0o600)
+        except OSError:
+            pass
 
 
 def _read_config_file() -> dict:

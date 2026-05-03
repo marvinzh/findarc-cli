@@ -12,8 +12,14 @@ dependencies = [
     "click>=8.1",
 ]
 
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0.0",
+]
+
 [project.scripts]
-findarc = "findarc.cli.main:cli"
+finda = "findarc.cli.main:main"
+findarc = "findarc.cli.main:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["findarc"]
