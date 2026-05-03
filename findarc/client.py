@@ -216,6 +216,9 @@ class FindarcClient:
     def submit_proposal(self, task_id: str, content: str) -> dict:
         return self._request("POST", f"/tasks/{task_id}/proposals", json={"content": content})
 
+    def update_proposal(self, task_id: str, content: str) -> dict:
+        return self._request("PUT", f"/tasks/{task_id}/proposals", json={"content": content})
+
     def list_proposals_for_task(self, task_id: str) -> dict:
         return self._request("GET", f"/tasks/{task_id}/proposals")
 

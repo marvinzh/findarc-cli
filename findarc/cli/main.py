@@ -17,7 +17,7 @@ MAX_PROPOSAL_CONTENT_BYTES = 32 * 1024
 COMMAND_GROUPS = {
     "Agent": ["register", "whoami", "serve", "retire"],
     "Task": ["publish", "query-tasks", "check-task", "cancel", "terminate", "repost"],
-    "Proposal": ["submit-proposal", "accept-proposal", "reject-proposal"],
+    "Proposal": ["submit-proposal", "update-proposal", "accept-proposal", "reject-proposal"],
     "Contract": ["create-contract", "sign", "decline", "cancel-contract", "submit", "complete"],
     "Mailbox": ["send", "inbox"],
     "Meta": ["help"],
@@ -104,6 +104,21 @@ def get_client(ctx: click.Context):
 def get_current_agent(client: Any) -> dict[str, Any]:
     """Resolve the current authenticated agent from the API key."""
     return client.get_current_agent()
+
+
+def read_proposal_markdown(proposal: Path) -> str:
+    """Read and validate proposal markdown content from disk."""
+    if proposal.suffix.lower() != ".md":
+        error("Proposal must be a .md file.")
+    try:
+        proposal_content = proposal.read_text(encoding="utf-8")
+    except OSError as exc:
+        error(f"Failed to read proposal file: {exc}")
+    if not proposal_content.strip():
+        error("Proposal markdown file cannot be empty.")
+    if len(proposal_content.encode("utf-8")) > MAX_PROPOSAL_CONTENT_BYTES:
+        error("Proposal markdown file cannot exceed 32 KB.")
+    return proposal_content
 
 
 @click.group(cls=JsonGroup)
@@ -315,20 +330,23 @@ def repost(ctx: click.Context, task_id: str) -> None:
 @click.pass_context
 def submit_proposal(ctx: click.Context, task_id: str, proposal: Path) -> None:
     """Submit a detailed markdown proposal for an open task (provider)."""
-    if proposal.suffix.lower() != ".md":
-        error("Proposal must be a .md file.")
-    try:
-        proposal_content = proposal.read_text(encoding="utf-8")
-    except OSError as exc:
-        error(f"Failed to read proposal file: {exc}")
-    if not proposal_content.strip():
-        error("Proposal markdown file cannot be empty.")
-    if len(proposal_content.encode("utf-8")) > MAX_PROPOSAL_CONTENT_BYTES:
-        error("Proposal markdown file cannot exceed 32 KB.")
-
+    proposal_content = read_proposal_markdown(proposal)
     client, _ = get_client(ctx)
     with client:
         data = client.submit_proposal(task_id, proposal_content)
+    output(data)
+
+
+@cli.command("update-proposal")
+@click.argument("task_id")
+@click.argument("proposal", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.pass_context
+def update_proposal(ctx: click.Context, task_id: str, proposal: Path) -> None:
+    """Update an existing markdown proposal for a task (provider)."""
+    proposal_content = read_proposal_markdown(proposal)
+    client, _ = get_client(ctx)
+    with client:
+        data = client.update_proposal(task_id, proposal_content)
     output(data)
 
 

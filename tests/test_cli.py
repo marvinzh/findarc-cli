@@ -11,6 +11,7 @@ class StubClient:
     current_agent_calls = 0
     list_tasks_calls: list[tuple[str | None, int, str | None]] = []
     submit_proposal_calls: list[tuple[str, str]] = []
+    update_proposal_calls: list[tuple[str, str]] = []
 
     def __init__(self, config):
         self.config = config
@@ -56,6 +57,10 @@ class StubClient:
 
     def submit_proposal(self, task_id: str, content: str) -> dict:
         StubClient.submit_proposal_calls.append((task_id, content))
+        return {"task_id": task_id, "content": content}
+
+    def update_proposal(self, task_id: str, content: str) -> dict:
+        StubClient.update_proposal_calls.append((task_id, content))
         return {"task_id": task_id, "content": content}
 
 
@@ -458,6 +463,34 @@ def test_sdk_submit_proposal_sends_markdown_content(monkeypatch):
     ]
 
 
+def test_sdk_update_proposal_sends_markdown_content(monkeypatch):
+    from findarc.client import FindarcClient
+    from findarc.config import Config
+
+    client = FindarcClient(Config(api_key="KEY", server_url="http://server/v1"))
+    calls: list[tuple[str, str, dict]] = []
+
+    def fake_request(method, path, **kwargs):
+        calls.append((method, path, kwargs))
+        return {"ok": True}
+
+    monkeypatch.setattr(client, "_request", fake_request)
+
+    try:
+        result = client.update_proposal("TK-1", "# Proposal\n\nDetailed update.")
+    finally:
+        client.close()
+
+    assert result == {"ok": True}
+    assert calls == [
+        (
+            "PUT",
+            "/tasks/TK-1/proposals",
+            {"json": {"content": "# Proposal\n\nDetailed update."}},
+        )
+    ]
+
+
 def test_submit_proposal_reads_markdown_file(monkeypatch, tmp_path):
     from findarc import client as client_module
     from findarc import config as config_module
@@ -498,6 +531,49 @@ def test_submit_proposal_reads_markdown_file(monkeypatch, tmp_path):
     assert json.loads(result.output) == {
         "task_id": "TK-1",
         "content": "# Proposal\n\nDetailed plan.",
+    }
+
+
+def test_update_proposal_reads_markdown_file(monkeypatch, tmp_path):
+    from findarc import client as client_module
+    from findarc import config as config_module
+
+    runner = CliRunner()
+    StubClient.update_proposal_calls.clear()
+    proposal_path = tmp_path / "proposal.md"
+    proposal_path.write_text("# Proposal\n\nDetailed update.", encoding="utf-8")
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(
+        config_module.Config,
+        "load",
+        classmethod(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
+                api_key=api_key or "KEY",
+                server_url=server_url or "http://server/v1",
+                agent_id="AI-local",
+            )
+        ),
+    )
+
+    result = runner.invoke(
+        cli,
+        [
+            "--api-key",
+            "KEY",
+            "--server-url",
+            "http://server/v1",
+            "update-proposal",
+            "TK-1",
+            str(proposal_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert StubClient.update_proposal_calls == [("TK-1", "# Proposal\n\nDetailed update.")]
+    assert json.loads(result.output) == {
+        "task_id": "TK-1",
+        "content": "# Proposal\n\nDetailed update.",
     }
 
 
@@ -684,6 +760,7 @@ def test_root_help_groups_commands_by_object():
     assert "  register" in result.output
     assert "  publish" in result.output
     assert "  submit-proposal" in result.output
+    assert "  update-proposal" in result.output
     assert "  create-contract" in result.output
     assert "  inbox" in result.output
     assert "  help" in result.output
@@ -699,5 +776,6 @@ def test_root_help_shows_full_command_descriptions():
     assert "List open tasks available to accept (provider view)." in result.output
     assert "Cancel an open task (requester only, no provider yet)." in result.output
     assert "Submit a detailed markdown proposal for an open task (provider)." in result.output
+    assert "Update an existing markdown proposal for a task (provider)." in result.output
     assert "Create a contract after a proposal has been accepted." in result.output
     assert "Submit a delivery artifact for an active contract (provider)." in result.output
