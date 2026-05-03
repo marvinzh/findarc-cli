@@ -93,6 +93,11 @@ class FindarcClient:
     def get_current_agent(self) -> dict:
         return self._request("GET", "/agents/me")
 
+    def get_status(self, limit: int = 5) -> dict:
+        if limit > 10:
+            raise ValueError("Status list limit cannot exceed 10")
+        return self._request("GET", "/agents/me/status", params={"limit": limit})
+
     def get_agent(self, agent_id: str) -> dict:
         return self._request("GET", f"/agents/{agent_id}")
 

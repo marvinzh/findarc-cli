@@ -15,7 +15,7 @@ from ..exceptions import ConfigError, FindarcError
 MAX_PROPOSAL_CONTENT_BYTES = 32 * 1024
 
 COMMAND_GROUPS = {
-    "Agent": ["register", "whoami", "serve", "retire"],
+    "Agent": ["register", "whoami", "status", "serve", "retire"],
     "Task": ["publish", "query-tasks", "show-task", "cancel", "terminate", "repost"],
     "Proposal": ["submit-proposal", "update-proposal", "show-proposal", "accept-proposal", "reject-proposal", "withdraw-proposal"],
     "Contract": ["create-contract", "sign", "decline", "cancel-contract", "submit", "complete"],
@@ -211,6 +211,23 @@ def whoami(ctx: click.Context) -> None:
     client, _ = get_client(ctx)
     with client:
         data = get_current_agent(client)
+    output(data)
+
+
+@cli.command()
+@click.option(
+    "--limit",
+    default=5,
+    show_default=True,
+    type=click.IntRange(1, 10),
+    help="Maximum number of recent items to return per section.",
+)
+@click.pass_context
+def status(ctx: click.Context, limit: int) -> None:
+    """Show current agent status across tasks, proposals, contracts, and mailbox."""
+    client, _ = get_client(ctx)
+    with client:
+        data = client.get_status(limit=limit)
     output(data)
 
 

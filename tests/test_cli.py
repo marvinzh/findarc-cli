@@ -10,6 +10,7 @@ from findarc.cli.main import cli, main
 class StubClient:
     register_calls: list[tuple[str, str, str | None]] = []
     current_agent_calls = 0
+    get_status_calls: list[int] = []
     list_tasks_calls: list[tuple[str | None, int, str | None]] = []
     submit_proposal_calls: list[tuple[str, str]] = []
     update_proposal_calls: list[tuple[str, str]] = []
@@ -37,6 +38,31 @@ class StubClient:
             "agent_id": "AI-current",
             "name": "Current Agent",
             "role": "requester",
+        }
+
+    def get_status(self, limit: int = 5) -> dict:
+        StubClient.get_status_calls.append(limit)
+        return {
+            "generated_at": "2026-05-04T00:00:00Z",
+            "limit": limit,
+            "agent": {
+                "agent_id": "AI-current",
+                "name": "Current Agent",
+                "role": "requester",
+                "availability": "available",
+                "tags": [],
+                "models": [],
+            },
+            "tasks": {
+                "as_requester": {"total": 1, "counts": [{"status": "open", "count": 1}], "items": []},
+                "as_provider": {"total": 0, "counts": [], "items": []},
+            },
+            "proposals": {"total": 0, "counts": [], "items": []},
+            "contracts": {
+                "as_requester": {"total": 0, "counts": [], "items": []},
+                "as_provider": {"total": 0, "counts": [], "items": []},
+            },
+            "mailbox": {"unread_count": 0},
         }
 
     def become_provider(self, agent_id: str, tags: list[str], models: list[str] | None = None) -> dict:
@@ -467,6 +493,40 @@ def test_sdk_iter_tasks_follows_next_cursor(monkeypatch):
     assert tasks == [{"task_id": "TK-1"}, {"task_id": "TK-2"}, {"task_id": "TK-3"}]
 
 
+def test_sdk_get_status_rejects_limit_over_ten():
+    from findarc.client import FindarcClient
+    from findarc.config import Config
+
+    client = FindarcClient(Config(api_key="KEY", server_url="http://server/v1"))
+    try:
+        with pytest.raises(ValueError, match="Status list limit cannot exceed 10"):
+            client.get_status(limit=11)
+    finally:
+        client.close()
+
+
+def test_sdk_get_status_passes_limit(monkeypatch):
+    from findarc.client import FindarcClient
+    from findarc.config import Config
+
+    client = FindarcClient(Config(api_key="KEY", server_url="http://server/v1"))
+    calls: list[tuple[str, str, dict]] = []
+
+    def fake_request(method, path, **kwargs):
+        calls.append((method, path, kwargs))
+        return {"ok": True}
+
+    monkeypatch.setattr(client, "_request", fake_request)
+
+    try:
+        result = client.get_status(limit=3)
+    finally:
+        client.close()
+
+    assert result == {"ok": True}
+    assert calls == [("GET", "/agents/me/status", {"params": {"limit": 3}})]
+
+
 def test_sdk_submit_proposal_sends_markdown_content(monkeypatch):
     from findarc.client import FindarcClient
     from findarc.config import Config
@@ -849,6 +909,36 @@ def test_cli_version_option():
     assert result.output.strip() == "0.1.0"
 
 
+def test_status_command_fetches_current_status(monkeypatch):
+    from findarc import client as client_module
+    from findarc import config as config_module
+
+    runner = CliRunner()
+    StubClient.get_status_calls.clear()
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(
+        config_module.Config,
+        "load",
+        classmethod(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
+                api_key=api_key or "KEY",
+                server_url=server_url or "http://server/v1",
+                agent_id="AI-local",
+            )
+        ),
+    )
+
+    result = runner.invoke(
+        cli,
+        ["--api-key", "KEY", "--server-url", "http://server/v1", "status", "--limit", "3"],
+    )
+
+    assert result.exit_code == 0
+    assert StubClient.get_status_calls == [3]
+    assert json.loads(result.output)["limit"] == 3
+
+
 def test_help_command_matches_root_help():
     runner = CliRunner()
 
@@ -873,6 +963,7 @@ def test_root_help_groups_commands_by_object():
     assert "\nMailbox:\n" in result.output
     assert "\nOthers:\n" in result.output
     assert "  register" in result.output
+    assert "  status" in result.output
     assert "  publish" in result.output
     assert "  show-task" in result.output
     assert "  submit-proposal" in result.output
@@ -891,6 +982,7 @@ def test_root_help_shows_full_command_descriptions():
 
     assert result.exit_code == 0
     assert "Register a new agent and save credentials to ~/.finda/config.json." in result.output
+    assert "Show current agent status across tasks, proposals, contracts, and mailbox." in result.output
     assert "List open tasks available to accept (provider view)." in result.output
     assert "Cancel an open task (requester only, no provider yet)." in result.output
     assert "Submit a detailed markdown proposal for an open task (provider)." in result.output
