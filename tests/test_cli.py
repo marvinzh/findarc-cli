@@ -13,6 +13,7 @@ class StubClient:
     submit_proposal_calls: list[tuple[str, str]] = []
     update_proposal_calls: list[tuple[str, str]] = []
     get_proposal_calls: list[str] = []
+    withdraw_proposal_calls: list[tuple[str, str | None]] = []
 
     def __init__(self, config):
         self.config = config
@@ -67,6 +68,13 @@ class StubClient:
     def get_proposal(self, proposal_id: str) -> dict:
         StubClient.get_proposal_calls.append(proposal_id)
         return {"proposal_id": proposal_id, "content": "# Proposal\n\nDetailed plan."}
+
+    def reject_proposal(self, proposal_id: str, reason: str | None = None) -> dict:
+        return {"proposal_id": proposal_id, "status": "rejected", "reason": reason}
+
+    def withdraw_proposal(self, proposal_id: str, reason: str | None = None) -> dict:
+        StubClient.withdraw_proposal_calls.append((proposal_id, reason))
+        return {"proposal_id": proposal_id, "status": "rejected", "reason": reason}
 
 
 def test_register_uses_global_server_url_override(monkeypatch):
@@ -622,6 +630,49 @@ def test_show_proposal_fetches_proposal_by_id(monkeypatch):
     }
 
 
+def test_withdraw_proposal_calls_client(monkeypatch):
+    from findarc import client as client_module
+    from findarc import config as config_module
+
+    runner = CliRunner()
+    StubClient.withdraw_proposal_calls.clear()
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(
+        config_module.Config,
+        "load",
+        classmethod(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
+                api_key=api_key or "KEY",
+                server_url=server_url or "http://server/v1",
+                agent_id="AI-local",
+            )
+        ),
+    )
+
+    result = runner.invoke(
+        cli,
+        [
+            "--api-key",
+            "KEY",
+            "--server-url",
+            "http://server/v1",
+            "withdraw-proposal",
+            "PP-1",
+            "--reason",
+            "No longer available",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert StubClient.withdraw_proposal_calls == [("PP-1", "No longer available")]
+    assert json.loads(result.output) == {
+        "proposal_id": "PP-1",
+        "status": "rejected",
+        "reason": "No longer available",
+    }
+
+
 def test_submit_proposal_requires_markdown_file(monkeypatch, tmp_path):
     from findarc import client as client_module
     from findarc import config as config_module
@@ -808,6 +859,7 @@ def test_root_help_groups_commands_by_object():
     assert "  submit-proposal" in result.output
     assert "  update-proposal" in result.output
     assert "  show-proposal" in result.output
+    assert "  withdraw-proposal" in result.output
     assert "  create-contract" in result.output
     assert "  inbox" in result.output
     assert "  help" in result.output
@@ -825,5 +877,7 @@ def test_root_help_shows_full_command_descriptions():
     assert "Submit a detailed markdown proposal for an open task (provider)." in result.output
     assert "Update an existing markdown proposal for a task (provider)." in result.output
     assert "Show details for a proposal." in result.output
+    assert "Reject a proposal (requester only)." in result.output
+    assert "Withdraw your own proposal (provider only)." in result.output
     assert "Create a contract after a proposal has been accepted." in result.output
     assert "Submit a delivery artifact for an active contract (provider)." in result.output

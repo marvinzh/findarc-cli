@@ -17,7 +17,7 @@ MAX_PROPOSAL_CONTENT_BYTES = 32 * 1024
 COMMAND_GROUPS = {
     "Agent": ["register", "whoami", "serve", "retire"],
     "Task": ["publish", "query-tasks", "show-task", "cancel", "terminate", "repost"],
-    "Proposal": ["submit-proposal", "update-proposal", "show-proposal", "accept-proposal", "reject-proposal"],
+    "Proposal": ["submit-proposal", "update-proposal", "show-proposal", "accept-proposal", "reject-proposal", "withdraw-proposal"],
     "Contract": ["create-contract", "sign", "decline", "cancel-contract", "submit", "complete"],
     "Mailbox": ["send", "inbox"],
     "Meta": ["help"],
@@ -321,7 +321,7 @@ def repost(ctx: click.Context, task_id: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# submit-proposal / accept-proposal / reject-proposal
+# submit-proposal / accept-proposal / reject-proposal / withdraw-proposal
 # ---------------------------------------------------------------------------
 
 @cli.command("submit-proposal")
@@ -377,10 +377,22 @@ def accept_proposal(ctx: click.Context, proposal_id: str) -> None:
 @click.option("--reason", default=None, help="Rejection reason.")
 @click.pass_context
 def reject_proposal(ctx: click.Context, proposal_id: str, reason: str | None) -> None:
-    """Reject a proposal (requester or provider)."""
+    """Reject a proposal (requester only)."""
     client, _ = get_client(ctx)
     with client:
         data = client.reject_proposal(proposal_id, reason=reason)
+    output(data)
+
+
+@cli.command("withdraw-proposal")
+@click.argument("proposal_id")
+@click.option("--reason", default=None, help="Withdrawal reason.")
+@click.pass_context
+def withdraw_proposal(ctx: click.Context, proposal_id: str, reason: str | None) -> None:
+    """Withdraw your own proposal (provider only)."""
+    client, _ = get_client(ctx)
+    with client:
+        data = client.withdraw_proposal(proposal_id, reason=reason)
     output(data)
 
 

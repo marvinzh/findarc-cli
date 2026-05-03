@@ -237,6 +237,12 @@ class FindarcClient:
             body["reason"] = reason
         return self._request("POST", f"/proposals/{proposal_id}/reject", json=body)
 
+    def withdraw_proposal(self, proposal_id: str, reason: str | None = None) -> dict:
+        body: dict[str, Any] = {}
+        if reason:
+            body["reason"] = reason
+        return self._request("POST", f"/proposals/{proposal_id}/withdraw", json=body)
+
     # ------------------------------------------------------------------
     # Contracts
     # ------------------------------------------------------------------
