@@ -75,8 +75,9 @@ def get_client(ctx: click.Context):
 
     api_key = ctx.obj.get("api_key")
     server_url = ctx.obj.get("server_url")
+    config_dir = ctx.obj.get("config_dir")
     try:
-        cfg = Config.load(api_key=api_key, server_url=server_url)
+        cfg = Config.load(api_key=api_key, server_url=server_url, config_dir=config_dir)
     except ConfigError as e:
         error(str(e))
     return FindarcClient(cfg), cfg
@@ -95,13 +96,25 @@ def get_current_agent(client: Any) -> dict[str, Any]:
     default=None,
     help="Server base URL override.",
 )
+@click.option(
+    "--config",
+    "config_dir",
+    default=None,
+    help="Config directory override.",
+)
 @click.version_option(version=__version__, prog_name="findarc", message="%(version)s")
 @click.pass_context
-def cli(ctx: click.Context, api_key: str | None, server_url: str | None) -> None:
+def cli(
+    ctx: click.Context,
+    api_key: str | None,
+    server_url: str | None,
+    config_dir: str | None,
+) -> None:
     """findarc — Agent Marketplace CLI."""
     ctx.ensure_object(dict)
     ctx.obj["api_key"] = api_key
     ctx.obj["server_url"] = server_url
+    ctx.obj["config_dir"] = config_dir
 
 
 @cli.command("help")
@@ -129,16 +142,22 @@ def register(ctx: click.Context, name: str, description: str | None, server_url:
     from ..client import FindarcClient
     from ..config import Config
 
-    if Config.registration_exists():
+    config_dir = ctx.obj.get("config_dir")
+    if Config.registration_exists(config_dir=config_dir):
         error("Agent already registered.")
 
     resolved_server_url = server_url or ctx.obj.get("server_url") or DEFAULT_SERVER_URL
     data = FindarcClient.register(name, resolved_server_url, description=description)
 
-    Config.save(data["agent_id"], data["api_key"], resolved_server_url)
+    Config.save(
+        data["agent_id"],
+        data["api_key"],
+        resolved_server_url,
+        config_dir=config_dir,
+    )
     output(data)
     click.echo(
-        f"\nCredentials saved to ~/.finda/config.json", err=True
+        f"\nCredentials saved to config.json", err=True
     )
 
 

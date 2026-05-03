@@ -55,14 +55,21 @@ def test_register_uses_global_server_url_override(monkeypatch):
     monkeypatch.setattr(
         config_module.Config,
         "registration_exists",
-        staticmethod(lambda: False),
+        staticmethod(lambda config_dir=None: False),
     )
     monkeypatch.setattr(
         config_module.Config,
         "save",
-        staticmethod(lambda agent_id, api_key, server_url: saved.update(
-            {"agent_id": agent_id, "api_key": api_key, "server_url": server_url}
-        )),
+        staticmethod(
+            lambda agent_id, api_key, server_url, config_dir=None: saved.update(
+                {
+                    "agent_id": agent_id,
+                    "api_key": api_key,
+                    "server_url": server_url,
+                    "config_dir": config_dir,
+                }
+            )
+        ),
     )
 
     result = runner.invoke(
@@ -76,8 +83,34 @@ def test_register_uses_global_server_url_override(monkeypatch):
         "agent_id": "AI-register",
         "api_key": "KEY-register",
         "server_url": "http://remote/v1",
+        "config_dir": None,
     }
-    assert "Credentials saved to ~/.finda/config.json" in result.stderr
+    assert "Credentials saved to config.json" in result.stderr
+
+
+def test_register_uses_custom_config_directory(monkeypatch, tmp_path):
+    from findarc import client as client_module
+
+    runner = CliRunner()
+    StubClient.register_calls.clear()
+    config_dir = tmp_path / "finda-config"
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+
+    result = runner.invoke(
+        cli,
+        ["--config", str(config_dir), "register", "--name", "agent"],
+    )
+
+    assert result.exit_code == 0
+    assert StubClient.register_calls == [("agent", "http://localhost:8000/v1", None)]
+    saved = json.loads((config_dir / "config.json").read_text())
+    assert saved == {
+        "agent_id": "AI-register",
+        "api_key": "KEY-register",
+        "server_url": "http://localhost:8000/v1",
+    }
+    assert "Credentials saved to config.json" in result.stderr
 
 
 def test_register_fails_when_finda_directory_already_exists(monkeypatch):
@@ -91,7 +124,7 @@ def test_register_fails_when_finda_directory_already_exists(monkeypatch):
     monkeypatch.setattr(
         config_module.Config,
         "registration_exists",
-        staticmethod(lambda: True),
+        staticmethod(lambda config_dir=None: True),
     )
 
     result = runner.invoke(
@@ -106,6 +139,26 @@ def test_register_fails_when_finda_directory_already_exists(monkeypatch):
     }
 
 
+def test_register_uses_custom_config_directory_for_duplicate_check(monkeypatch, tmp_path):
+    from findarc import client as client_module
+
+    runner = CliRunner()
+    StubClient.register_calls.clear()
+    config_dir = tmp_path / "finda-config"
+    config_dir.mkdir()
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+
+    result = runner.invoke(
+        cli,
+        ["--config", str(config_dir), "register", "--name", "agent"],
+    )
+
+    assert result.exit_code == 1
+    assert StubClient.register_calls == []
+    assert json.loads(result.stderr) == {"error": "Agent already registered."}
+
+
 def test_whoami_uses_authenticated_agent_not_local_agent_id(monkeypatch):
     from findarc import client as client_module
     from findarc import config as config_module
@@ -118,7 +171,7 @@ def test_whoami_uses_authenticated_agent_not_local_agent_id(monkeypatch):
         config_module.Config,
         "load",
         classmethod(
-            lambda cls, api_key=None, server_url=None: config_module.Config(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
                 api_key=api_key or "KEY",
                 server_url=server_url or "http://server/v1",
                 agent_id="AI-stale-local",
@@ -129,6 +182,39 @@ def test_whoami_uses_authenticated_agent_not_local_agent_id(monkeypatch):
     result = runner.invoke(
         cli,
         ["--api-key", "KEY", "--server-url", "http://server/v1", "whoami"],
+    )
+
+    assert result.exit_code == 0
+    assert StubClient.current_agent_calls == 1
+    assert json.loads(result.output) == {
+        "agent_id": "AI-current",
+        "name": "Current Agent",
+        "role": "requester",
+    }
+
+
+def test_whoami_loads_config_from_custom_directory(monkeypatch, tmp_path):
+    from findarc import client as client_module
+
+    runner = CliRunner()
+    StubClient.current_agent_calls = 0
+    config_dir = tmp_path / "finda-config"
+    config_dir.mkdir()
+    (config_dir / "config.json").write_text(
+        json.dumps(
+            {
+                "agent_id": "AI-local",
+                "api_key": "KEY",
+                "server_url": "http://server/v1",
+            }
+        )
+    )
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+
+    result = runner.invoke(
+        cli,
+        ["--config", str(config_dir), "whoami"],
     )
 
     assert result.exit_code == 0
@@ -151,7 +237,7 @@ def test_serve_and_retire_resolve_current_agent_with_env_overrides(monkeypatch):
         config_module.Config,
         "load",
         classmethod(
-            lambda cls, api_key=None, server_url=None: config_module.Config(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
                 api_key=api_key or "ENVKEY",
                 server_url=server_url or "http://env/v1",
                 agent_id=None,
@@ -200,7 +286,7 @@ def test_cli_outputs_json_error_for_findarc_exceptions(monkeypatch):
         config_module.Config,
         "load",
         classmethod(
-            lambda cls, api_key=None, server_url=None: config_module.Config(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
                 api_key=api_key or "KEY",
                 server_url=server_url or "http://server/v1",
                 agent_id="AI-local",

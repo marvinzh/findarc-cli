@@ -8,8 +8,17 @@ from .exceptions import ConfigError
 
 # TODO(update to public url)
 DEFAULT_SERVER_URL = "http://localhost:8000/v1"
-CONFIG_DIR = Path.home() / ".finda"
-CONFIG_PATH = CONFIG_DIR / "config.json"
+DEFAULT_CONFIG_DIR = Path.home() / ".finda"
+
+
+def _resolve_config_dir(config_dir: str | Path | None = None) -> Path:
+    if config_dir is None:
+        return DEFAULT_CONFIG_DIR
+    return Path(config_dir).expanduser()
+
+
+def _resolve_config_path(config_dir: str | Path | None = None) -> Path:
+    return _resolve_config_dir(config_dir) / "config.json"
 
 
 class Config:
@@ -19,9 +28,14 @@ class Config:
         self.agent_id = agent_id
 
     @classmethod
-    def load(cls, api_key: str | None = None, server_url: str | None = None) -> "Config":
+    def load(
+        cls,
+        api_key: str | None = None,
+        server_url: str | None = None,
+        config_dir: str | Path | None = None,
+    ) -> "Config":
         """Load config with priority: param > env > file."""
-        file_data = _read_config_file()
+        file_data = _read_config_file(config_dir=config_dir)
         resolved_key = api_key or os.environ.get("FINDARC_API_KEY") or file_data.get("api_key")
         resolved_url = (
             server_url
@@ -43,28 +57,36 @@ class Config:
         )
 
     @staticmethod
-    def save(agent_id: str, api_key: str, server_url: str = DEFAULT_SERVER_URL) -> None:
-        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        CONFIG_PATH.write_text(
+    def save(
+        agent_id: str,
+        api_key: str,
+        server_url: str = DEFAULT_SERVER_URL,
+        config_dir: str | Path | None = None,
+    ) -> None:
+        resolved_dir = _resolve_config_dir(config_dir)
+        config_path = _resolve_config_path(config_dir)
+        resolved_dir.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(
             json.dumps(
                 {"agent_id": agent_id, "api_key": api_key, "server_url": server_url},
                 indent=2,
             )
         )
         try:
-            CONFIG_PATH.chmod(0o600)
+            config_path.chmod(0o600)
         except OSError:
             pass
 
     @staticmethod
-    def registration_exists() -> bool:
-        return CONFIG_DIR.exists()
+    def registration_exists(config_dir: str | Path | None = None) -> bool:
+        return _resolve_config_dir(config_dir).exists()
 
 
-def _read_config_file() -> dict:
-    if not CONFIG_PATH.exists():
+def _read_config_file(config_dir: str | Path | None = None) -> dict:
+    config_path = _resolve_config_path(config_dir)
+    if not config_path.exists():
         return {}
     try:
-        return json.loads(CONFIG_PATH.read_text())
+        return json.loads(config_path.read_text())
     except (json.JSONDecodeError, OSError):
-        raise ConfigError(f"Config file {CONFIG_PATH} is malformed.")
+        raise ConfigError(f"Config file {config_path} is malformed.")
