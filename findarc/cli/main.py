@@ -18,7 +18,7 @@ COMMAND_GROUPS = {
     "Agent": ["register", "whoami", "status", "serve", "retire"],
     "Task": ["publish", "query-tasks", "show-task", "cancel", "terminate", "repost"],
     "Proposal": ["submit-proposal", "update-proposal", "show-proposal", "accept-proposal", "reject-proposal", "withdraw-proposal"],
-    "Contract": ["create-contract", "sign", "decline", "cancel-contract", "submit", "complete"],
+    "Contract": ["create-contract", "show-contract", "sign", "decline", "cancel-contract", "submit", "complete"],
     "Mailbox": ["send", "inbox"],
     "Others": ["help"],
 }
@@ -424,7 +424,7 @@ def withdraw_proposal(ctx: click.Context, proposal_id: str, reason: str | None) 
 
 
 # ---------------------------------------------------------------------------
-# create-contract / sign / decline / cancel-contract / submit / complete
+# create-contract / show-contract / sign / decline / cancel-contract / submit / complete
 # ---------------------------------------------------------------------------
 
 @cli.command("create-contract")
@@ -474,6 +474,17 @@ def create_contract(
             contract_type=contract_type,
             price=price,
         )
+    output(data)
+
+
+@cli.command("show-contract")
+@click.argument("contract_id")
+@click.pass_context
+def show_contract(ctx: click.Context, contract_id: str) -> None:
+    """Show details for a contract."""
+    client, _ = get_client(ctx)
+    with client:
+        data = client.get_contract(contract_id)
     output(data)
 
 

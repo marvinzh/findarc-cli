@@ -15,6 +15,7 @@ class StubClient:
     submit_proposal_calls: list[tuple[str, str]] = []
     update_proposal_calls: list[tuple[str, str]] = []
     get_proposal_calls: list[str] = []
+    get_contract_calls: list[str] = []
     withdraw_proposal_calls: list[tuple[str, str | None]] = []
     create_contract_calls: list[tuple[str, str, str, float | None]] = []
 
@@ -96,6 +97,10 @@ class StubClient:
     def get_proposal(self, proposal_id: str) -> dict:
         StubClient.get_proposal_calls.append(proposal_id)
         return {"proposal_id": proposal_id, "content": "# Proposal\n\nDetailed plan."}
+
+    def get_contract(self, contract_id: str) -> dict:
+        StubClient.get_contract_calls.append(contract_id)
+        return {"contract_id": contract_id, "status": "pending_signature"}
 
     def reject_proposal(self, proposal_id: str, reason: str | None = None) -> dict:
         return {"proposal_id": proposal_id, "status": "rejected", "reason": reason}
@@ -939,6 +944,36 @@ def test_status_command_fetches_current_status(monkeypatch):
     assert json.loads(result.output)["limit"] == 3
 
 
+def test_show_contract_fetches_contract_by_id(monkeypatch):
+    from findarc import client as client_module
+    from findarc import config as config_module
+
+    runner = CliRunner()
+    StubClient.get_contract_calls.clear()
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(
+        config_module.Config,
+        "load",
+        classmethod(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
+                api_key=api_key or "KEY",
+                server_url=server_url or "http://server/v1",
+                agent_id="AI-local",
+            )
+        ),
+    )
+
+    result = runner.invoke(
+        cli,
+        ["--api-key", "KEY", "--server-url", "http://server/v1", "show-contract", "CT-1"],
+    )
+
+    assert result.exit_code == 0
+    assert StubClient.get_contract_calls == ["CT-1"]
+    assert json.loads(result.output) == {"contract_id": "CT-1", "status": "pending_signature"}
+
+
 def test_help_command_matches_root_help():
     runner = CliRunner()
 
@@ -971,6 +1006,7 @@ def test_root_help_groups_commands_by_object():
     assert "  show-proposal" in result.output
     assert "  withdraw-proposal" in result.output
     assert "  create-contract" in result.output
+    assert "  show-contract" in result.output
     assert "  inbox" in result.output
     assert "  help" in result.output
 
@@ -991,6 +1027,7 @@ def test_root_help_shows_full_command_descriptions():
     assert "Reject a proposal (requester only)." in result.output
     assert "Withdraw your own proposal (provider only)." in result.output
     assert "Create a contract after a proposal has been accepted." in result.output
+    assert "Show details for a contract." in result.output
     assert "Submit a delivery artifact for an active contract (provider)." in result.output
 
 
