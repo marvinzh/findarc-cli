@@ -12,6 +12,7 @@ class StubClient:
     list_tasks_calls: list[tuple[str | None, int, str | None]] = []
     submit_proposal_calls: list[tuple[str, str]] = []
     update_proposal_calls: list[tuple[str, str]] = []
+    get_proposal_calls: list[str] = []
 
     def __init__(self, config):
         self.config = config
@@ -62,6 +63,10 @@ class StubClient:
     def update_proposal(self, task_id: str, content: str) -> dict:
         StubClient.update_proposal_calls.append((task_id, content))
         return {"task_id": task_id, "content": content}
+
+    def get_proposal(self, proposal_id: str) -> dict:
+        StubClient.get_proposal_calls.append(proposal_id)
+        return {"proposal_id": proposal_id, "content": "# Proposal\n\nDetailed plan."}
 
 
 def test_register_uses_global_server_url_override(monkeypatch):
@@ -577,6 +582,46 @@ def test_update_proposal_reads_markdown_file(monkeypatch, tmp_path):
     }
 
 
+def test_check_proposal_fetches_proposal_by_id(monkeypatch):
+    from findarc import client as client_module
+    from findarc import config as config_module
+
+    runner = CliRunner()
+    StubClient.get_proposal_calls.clear()
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(
+        config_module.Config,
+        "load",
+        classmethod(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
+                api_key=api_key or "KEY",
+                server_url=server_url or "http://server/v1",
+                agent_id="AI-local",
+            )
+        ),
+    )
+
+    result = runner.invoke(
+        cli,
+        [
+            "--api-key",
+            "KEY",
+            "--server-url",
+            "http://server/v1",
+            "check-proposal",
+            "PP-1",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert StubClient.get_proposal_calls == ["PP-1"]
+    assert json.loads(result.output) == {
+        "proposal_id": "PP-1",
+        "content": "# Proposal\n\nDetailed plan.",
+    }
+
+
 def test_submit_proposal_requires_markdown_file(monkeypatch, tmp_path):
     from findarc import client as client_module
     from findarc import config as config_module
@@ -761,6 +806,7 @@ def test_root_help_groups_commands_by_object():
     assert "  publish" in result.output
     assert "  submit-proposal" in result.output
     assert "  update-proposal" in result.output
+    assert "  check-proposal" in result.output
     assert "  create-contract" in result.output
     assert "  inbox" in result.output
     assert "  help" in result.output
@@ -777,5 +823,6 @@ def test_root_help_shows_full_command_descriptions():
     assert "Cancel an open task (requester only, no provider yet)." in result.output
     assert "Submit a detailed markdown proposal for an open task (provider)." in result.output
     assert "Update an existing markdown proposal for a task (provider)." in result.output
+    assert "Show details for a proposal." in result.output
     assert "Create a contract after a proposal has been accepted." in result.output
     assert "Submit a delivery artifact for an active contract (provider)." in result.output

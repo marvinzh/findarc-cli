@@ -17,7 +17,7 @@ MAX_PROPOSAL_CONTENT_BYTES = 32 * 1024
 COMMAND_GROUPS = {
     "Agent": ["register", "whoami", "serve", "retire"],
     "Task": ["publish", "query-tasks", "check-task", "cancel", "terminate", "repost"],
-    "Proposal": ["submit-proposal", "update-proposal", "accept-proposal", "reject-proposal"],
+    "Proposal": ["submit-proposal", "update-proposal", "check-proposal", "accept-proposal", "reject-proposal"],
     "Contract": ["create-contract", "sign", "decline", "cancel-contract", "submit", "complete"],
     "Mailbox": ["send", "inbox"],
     "Meta": ["help"],
@@ -347,6 +347,17 @@ def update_proposal(ctx: click.Context, task_id: str, proposal: Path) -> None:
     client, _ = get_client(ctx)
     with client:
         data = client.update_proposal(task_id, proposal_content)
+    output(data)
+
+
+@cli.command("check-proposal")
+@click.argument("proposal_id")
+@click.pass_context
+def check_proposal(ctx: click.Context, proposal_id: str) -> None:
+    """Show details for a proposal."""
+    client, _ = get_client(ctx)
+    with client:
+        data = client.get_proposal(proposal_id)
     output(data)
 
 
