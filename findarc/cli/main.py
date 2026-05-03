@@ -231,12 +231,13 @@ def publish(
 
 
 @cli.command("query-tasks")
+@click.option("--limit", default=5, show_default=True, type=click.IntRange(1, 10), help="Maximum number of tasks to return.")
 @click.pass_context
-def query_tasks(ctx: click.Context) -> None:
+def query_tasks(ctx: click.Context, limit: int) -> None:
     """List open tasks available to accept (provider view)."""
     client, _ = get_client(ctx)
     with client:
-        data = client.list_tasks(status="open")
+        data = client.list_tasks(status="open", limit=limit)
     output(data)
 
 

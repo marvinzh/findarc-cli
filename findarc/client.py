@@ -167,10 +167,11 @@ class FindarcClient:
             body["budget"] = budget
         return self._request("POST", "/tasks", json=body)
 
-    def list_tasks(self, status: str | None = None) -> dict:
+    def list_tasks(self, status: str | None = None, limit: int = 5) -> dict:
         params = {}
         if status:
             params["status"] = status
+        params["limit"] = limit
         return self._request("GET", "/tasks", params=params)
 
     def get_task(self, task_id: str) -> dict:

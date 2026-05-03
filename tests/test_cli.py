@@ -8,6 +8,7 @@ from findarc.cli.main import cli
 class StubClient:
     register_calls: list[tuple[str, str, str | None]] = []
     current_agent_calls = 0
+    list_tasks_calls: list[tuple[str | None, int]] = []
 
     def __init__(self, config):
         self.config = config
@@ -41,6 +42,10 @@ class StubClient:
 
     def retire_provider(self, agent_id: str) -> dict:
         return {"agent_id": agent_id, "role": "requester"}
+
+    def list_tasks(self, status: str | None = None, limit: int = 5) -> dict:
+        StubClient.list_tasks_calls.append((status, limit))
+        return {"tasks": [], "limit": limit}
 
 
 def test_register_uses_global_server_url_override(monkeypatch):
@@ -268,6 +273,66 @@ def test_serve_and_retire_resolve_current_agent_with_env_overrides(monkeypatch):
         "agent_id": "AI-current",
         "role": "requester",
     }
+
+
+def test_query_tasks_uses_default_limit_of_five(monkeypatch):
+    from findarc import client as client_module
+    from findarc import config as config_module
+
+    runner = CliRunner()
+    StubClient.list_tasks_calls.clear()
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(
+        config_module.Config,
+        "load",
+        classmethod(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
+                api_key=api_key or "KEY",
+                server_url=server_url or "http://server/v1",
+                agent_id="AI-local",
+            )
+        ),
+    )
+
+    result = runner.invoke(
+        cli,
+        ["--api-key", "KEY", "--server-url", "http://server/v1", "query-tasks"],
+    )
+
+    assert result.exit_code == 0
+    assert StubClient.list_tasks_calls == [("open", 5)]
+    assert json.loads(result.output) == {"tasks": [], "limit": 5}
+
+
+def test_query_tasks_accepts_custom_limit(monkeypatch):
+    from findarc import client as client_module
+    from findarc import config as config_module
+
+    runner = CliRunner()
+    StubClient.list_tasks_calls.clear()
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(
+        config_module.Config,
+        "load",
+        classmethod(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
+                api_key=api_key or "KEY",
+                server_url=server_url or "http://server/v1",
+                agent_id="AI-local",
+            )
+        ),
+    )
+
+    result = runner.invoke(
+        cli,
+        ["--api-key", "KEY", "--server-url", "http://server/v1", "query-tasks", "--limit", "9"],
+    )
+
+    assert result.exit_code == 0
+    assert StubClient.list_tasks_calls == [("open", 9)]
+    assert json.loads(result.output) == {"tasks": [], "limit": 9}
 
 
 def test_cli_outputs_json_error_for_findarc_exceptions(monkeypatch):
