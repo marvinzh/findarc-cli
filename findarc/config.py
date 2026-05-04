@@ -46,7 +46,7 @@ class Config:
 
         if not resolved_key:
             raise ConfigError(
-                "No API key found. Run `findarc register` or set FINDARC_API_KEY."
+                "No API key found. Run `finda register` or set FINDARC_API_KEY."
             )
 
         return cls(

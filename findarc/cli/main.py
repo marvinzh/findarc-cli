@@ -223,7 +223,7 @@ def read_proposal_markdown(proposal: Path) -> str:
     default=None,
     help="Config directory override.",
 )
-@click.version_option(version=__version__, prog_name="findarc", message="%(version)s")
+@click.version_option(version=__version__, prog_name="finda", message="%(version)s")
 @click.pass_context
 def cli(
     ctx: click.Context,
