@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 from click.testing import CliRunner
+import httpx
 import pytest
 
 from findarc.cli.main import cli, main
@@ -17,6 +18,8 @@ class StubClient:
     update_proposal_calls: list[tuple[str, str]] = []
     get_proposal_calls: list[str] = []
     get_contract_calls: list[str] = []
+    list_submissions_calls: list[str] = []
+    download_artifact_calls: list[tuple[str, Path | None]] = []
     withdraw_proposal_calls: list[tuple[str, str | None]] = []
     create_contract_calls: list[tuple[str, str, str, float | None]] = []
 
@@ -102,6 +105,30 @@ class StubClient:
     def get_contract(self, contract_id: str) -> dict:
         StubClient.get_contract_calls.append(contract_id)
         return {"contract_id": contract_id, "status": "pending_signature"}
+
+    def list_submissions(self, contract_id: str) -> dict:
+        StubClient.list_submissions_calls.append(contract_id)
+        return {
+            "submissions": [
+                {
+                    "submission_id": "SUB-20260504120000000000ABCD",
+                    "contract_id": contract_id,
+                    "task_id": "TK-1",
+                    "submitted_by": "AI-provider",
+                    "content": "Final delivery package",
+                    "artifact_filename": "delivery.zip",
+                    "created_at": "2026-05-04T12:00:00Z",
+                }
+            ]
+        }
+
+    def download_artifact(self, submission_id: str, output_path: Path | None = None) -> dict:
+        StubClient.download_artifact_calls.append((submission_id, output_path))
+        return {
+            "submission_id": submission_id,
+            "artifact_filename": "delivery.zip",
+            "saved_to": str(output_path or Path("delivery.zip")),
+        }
 
     def reject_proposal(self, proposal_id: str, reason: str | None = None) -> dict:
         return {"proposal_id": proposal_id, "status": "rejected", "reason": reason}
@@ -1080,6 +1107,38 @@ def test_sdk_submit_delivery_rejects_zip_over_size_limit(tmp_path):
         client.close()
 
 
+def test_sdk_download_artifact_saves_response_content(tmp_path):
+    from findarc.client import FindarcClient
+    from findarc.config import Config
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/v1/contracts/submissions/SUB-1/artifact"
+        return httpx.Response(
+            200,
+            headers={"content-disposition": 'attachment; filename="delivery.zip"'},
+            content=b"zip-bytes",
+        )
+
+    client = FindarcClient(Config(api_key="KEY", server_url="http://server/v1"))
+    client._http = httpx.Client(
+        base_url="http://server/v1",
+        headers={"Authorization": "Bearer KEY"},
+        transport=httpx.MockTransport(handler),
+    )
+    target = tmp_path / "downloads" / "delivery.zip"
+    try:
+        result = client.download_artifact("SUB-1", output_path=target)
+    finally:
+        client.close()
+
+    assert target.read_bytes() == b"zip-bytes"
+    assert result == {
+        "submission_id": "SUB-1",
+        "artifact_filename": "delivery.zip",
+        "saved_to": str(target),
+    }
+
+
 def test_submit_uploads_zip_artifact(monkeypatch, tmp_path):
     from findarc import client as client_module
     from findarc import config as config_module
@@ -1122,6 +1181,114 @@ def test_submit_uploads_zip_artifact(monkeypatch, tmp_path):
         "contract_id": "CT-1",
         "content": "Final delivery package",
         "artifact_filename": "delivery.zip",
+    }
+
+
+def test_show_submissions_lists_contract_submissions(monkeypatch):
+    from findarc import client as client_module
+    from findarc import config as config_module
+
+    runner = CliRunner()
+    StubClient.list_submissions_calls.clear()
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(
+        config_module.Config,
+        "load",
+        classmethod(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
+                api_key=api_key or "KEY",
+                server_url=server_url or "http://server/v1",
+                agent_id="AI-local",
+            )
+        ),
+    )
+
+    result = runner.invoke(
+        cli,
+        ["--api-key", "KEY", "--server-url", "http://server/v1", "show-submissions", "CT-1"],
+    )
+
+    assert result.exit_code == 0
+    assert StubClient.list_submissions_calls == ["CT-1"]
+    assert json.loads(result.output)["submissions"][0]["artifact_filename"] == "delivery.zip"
+
+
+def test_download_artifact_uses_default_filename(monkeypatch):
+    from findarc import client as client_module
+    from findarc import config as config_module
+
+    runner = CliRunner()
+    StubClient.download_artifact_calls.clear()
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(
+        config_module.Config,
+        "load",
+        classmethod(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
+                api_key=api_key or "KEY",
+                server_url=server_url or "http://server/v1",
+                agent_id="AI-local",
+            )
+        ),
+    )
+
+    result = runner.invoke(
+        cli,
+        ["--api-key", "KEY", "--server-url", "http://server/v1", "download-artifact", "SUB-1"],
+    )
+
+    assert result.exit_code == 0
+    assert StubClient.download_artifact_calls == [("SUB-1", None)]
+    assert json.loads(result.output) == {
+        "submission_id": "SUB-1",
+        "artifact_filename": "delivery.zip",
+        "saved_to": "delivery.zip",
+    }
+
+
+def test_download_artifact_accepts_output_path(monkeypatch, tmp_path):
+    from findarc import client as client_module
+    from findarc import config as config_module
+
+    runner = CliRunner()
+    StubClient.download_artifact_calls.clear()
+    output_path = tmp_path / "artifact.zip"
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(
+        config_module.Config,
+        "load",
+        classmethod(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
+                api_key=api_key or "KEY",
+                server_url=server_url or "http://server/v1",
+                agent_id="AI-local",
+            )
+        ),
+    )
+
+    result = runner.invoke(
+        cli,
+        [
+            "--api-key",
+            "KEY",
+            "--server-url",
+            "http://server/v1",
+            "download-artifact",
+            "SUB-1",
+            "--output",
+            str(output_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert StubClient.download_artifact_calls == [("SUB-1", output_path)]
+    assert json.loads(result.output) == {
+        "submission_id": "SUB-1",
+        "artifact_filename": "delivery.zip",
+        "saved_to": str(output_path),
     }
 
 

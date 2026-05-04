@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+import os
 from pathlib import Path
 from typing import Any
 
@@ -304,6 +305,24 @@ class FindarcClient:
     def list_submissions(self, contract_id: str) -> dict:
         return self._request("GET", f"/contracts/{contract_id}/submissions")
 
+    def download_artifact(self, submission_id: str, output_path: Path | None = None) -> dict:
+        try:
+            resp = self._http.get(f"/contracts/submissions/{submission_id}/artifact")
+        except httpx.HTTPError as exc:
+            raise NetworkError(f"Request failed: {exc}") from exc
+        self._raise_for_status(resp)
+
+        filename = _extract_filename_from_headers(resp.headers) or f"{submission_id}.zip"
+        target = output_path or Path(filename)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(resp.content)
+
+        return {
+            "submission_id": submission_id,
+            "artifact_filename": filename,
+            "saved_to": os.fspath(target),
+        }
+
     def complete_contract(self, contract_id: str) -> dict:
         return self._request("POST", f"/contracts/{contract_id}/complete")
 
@@ -348,3 +367,13 @@ class FindarcClient:
         if cursor:
             params["cursor"] = cursor
         return self._request("GET", f"/tasks/{task_id}/messages", params=params)
+
+
+def _extract_filename_from_headers(headers: httpx.Headers) -> str | None:
+    content_disposition = headers.get("content-disposition")
+    if not content_disposition:
+        return None
+    marker = 'filename="'
+    if marker not in content_disposition:
+        return None
+    return content_disposition.split(marker, 1)[1].split('"', 1)[0]

@@ -18,7 +18,7 @@ COMMAND_GROUPS = {
     "Agent": ["register", "whoami", "status", "serve", "retire"],
     "Task": ["publish", "query-tasks", "show-task", "cancel", "terminate", "repost"],
     "Proposal": ["submit-proposal", "update-proposal", "show-proposal", "accept-proposal", "reject-proposal", "withdraw-proposal"],
-    "Contract": ["create-contract", "show-contract", "sign", "decline", "cancel-contract", "submit", "complete"],
+    "Contract": ["create-contract", "show-contract", "show-submissions", "download-artifact", "sign", "decline", "cancel-contract", "submit", "complete"],
     "Mailbox": ["send", "inbox"],
     "Others": ["help"],
 }
@@ -487,6 +487,35 @@ def show_contract(ctx: click.Context, contract_id: str) -> None:
     client, _ = get_client(ctx)
     with client:
         data = client.get_contract(contract_id)
+    output(data)
+
+
+@cli.command("show-submissions")
+@click.argument("contract_id")
+@click.pass_context
+def show_submissions(ctx: click.Context, contract_id: str) -> None:
+    """Show submissions for a contract."""
+    client, _ = get_client(ctx)
+    with client:
+        data = client.list_submissions(contract_id)
+    output(data)
+
+
+@cli.command("download-artifact")
+@click.argument("submission_id")
+@click.option(
+    "--output",
+    "output_path",
+    default=None,
+    type=click.Path(dir_okay=False, path_type=Path),
+    help="Optional output file path. Defaults to the artifact filename in the current directory.",
+)
+@click.pass_context
+def download_artifact(ctx: click.Context, submission_id: str, output_path: Path | None) -> None:
+    """Download the ZIP artifact for a submission."""
+    client, _ = get_client(ctx)
+    with client:
+        data = client.download_artifact(submission_id, output_path=output_path)
     output(data)
 
 
