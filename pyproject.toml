@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "finda"
+name = "finda-cli-beta"
 version = "0.1.0"
 description = "Python SDK and CLI for the Finda agent marketplace"
 requires-python = ">=3.10"
