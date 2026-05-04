@@ -1,4 +1,4 @@
-"""Data models for the findarc SDK (TypedDict-based for easy JSON serialization)."""
+"""Data models for the finda SDK (TypedDict-based for easy JSON serialization)."""
 from __future__ import annotations
 
 from typing import Any

@@ -6,7 +6,7 @@ from click.testing import CliRunner
 import httpx
 import pytest
 
-from findarc.cli.main import cli, main
+from finda.cli.main import cli, main
 
 
 class StubClient:
@@ -184,14 +184,14 @@ class StubClient:
 
 
 def test_register_uses_global_server_url_override(monkeypatch):
-    from findarc import config as config_module
-    from findarc import client as client_module
+    from finda import config as config_module
+    from finda import client as client_module
 
     runner = CliRunner()
     saved: dict[str, str] = {}
     StubClient.register_calls.clear()
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "registration_exists",
@@ -229,13 +229,13 @@ def test_register_uses_global_server_url_override(monkeypatch):
 
 
 def test_register_uses_custom_config_directory(monkeypatch, tmp_path):
-    from findarc import client as client_module
+    from finda import client as client_module
 
     runner = CliRunner()
     StubClient.register_calls.clear()
     config_dir = tmp_path / "finda-config"
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
 
     result = runner.invoke(
         cli,
@@ -243,24 +243,24 @@ def test_register_uses_custom_config_directory(monkeypatch, tmp_path):
     )
 
     assert result.exit_code == 0
-    assert StubClient.register_calls == [("agent", "http://svc.gofindarc.today:8080/v1", None)]
+    assert StubClient.register_calls == [("agent", "http://svc.gofinda.today:8080/v1", None)]
     saved = json.loads((config_dir / "config.json").read_text())
     assert saved == {
         "agent_id": "AI-register",
         "api_key": "KEY-register",
-        "server_url": "http://svc.gofindarc.today:8080/v1",
+        "server_url": "http://svc.gofinda.today:8080/v1",
     }
     assert "Credentials saved to config.json" in result.stderr
 
 
 def test_register_fails_when_finda_directory_already_exists(monkeypatch):
-    from findarc import config as config_module
-    from findarc import client as client_module
+    from finda import config as config_module
+    from finda import client as client_module
 
     runner = CliRunner()
     StubClient.register_calls.clear()
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "registration_exists",
@@ -278,14 +278,14 @@ def test_register_fails_when_finda_directory_already_exists(monkeypatch):
 
 
 def test_register_uses_custom_config_directory_for_duplicate_check(monkeypatch, tmp_path):
-    from findarc import client as client_module
+    from finda import client as client_module
 
     runner = CliRunner()
     StubClient.register_calls.clear()
     config_dir = tmp_path / "finda-config"
     config_dir.mkdir()
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
 
     result = runner.invoke(
         cli,
@@ -298,13 +298,13 @@ def test_register_uses_custom_config_directory_for_duplicate_check(monkeypatch, 
 
 
 def test_register_duplicate_uses_json_error_when_requested(monkeypatch):
-    from findarc import config as config_module
-    from findarc import client as client_module
+    from finda import config as config_module
+    from finda import client as client_module
 
     runner = CliRunner()
     StubClient.register_calls.clear()
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "registration_exists",
@@ -322,13 +322,13 @@ def test_register_duplicate_uses_json_error_when_requested(monkeypatch):
 
 
 def test_whoami_uses_authenticated_agent_not_local_agent_id(monkeypatch):
-    from findarc import client as client_module
-    from findarc import config as config_module
+    from finda import client as client_module
+    from finda import config as config_module
 
     runner = CliRunner()
     StubClient.current_agent_calls = 0
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "load",
@@ -356,7 +356,7 @@ def test_whoami_uses_authenticated_agent_not_local_agent_id(monkeypatch):
 
 
 def test_whoami_loads_config_from_custom_directory(monkeypatch, tmp_path):
-    from findarc import client as client_module
+    from finda import client as client_module
 
     runner = CliRunner()
     StubClient.current_agent_calls = 0
@@ -372,7 +372,7 @@ def test_whoami_loads_config_from_custom_directory(monkeypatch, tmp_path):
         )
     )
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
 
     result = runner.invoke(
         cli,
@@ -389,13 +389,13 @@ def test_whoami_loads_config_from_custom_directory(monkeypatch, tmp_path):
 
 
 def test_whoami_pretty_prints_by_default(monkeypatch):
-    from findarc import client as client_module
-    from findarc import config as config_module
+    from finda import client as client_module
+    from finda import config as config_module
 
     runner = CliRunner()
     StubClient.current_agent_calls = 0
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "load",
@@ -418,12 +418,12 @@ def test_whoami_pretty_prints_by_default(monkeypatch):
 
 
 def test_serve_and_retire_resolve_current_agent_with_env_overrides(monkeypatch):
-    from findarc import client as client_module
-    from findarc import config as config_module
+    from finda import client as client_module
+    from finda import config as config_module
 
     runner = CliRunner()
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "load",
@@ -439,12 +439,12 @@ def test_serve_and_retire_resolve_current_agent_with_env_overrides(monkeypatch):
     serve_result = runner.invoke(
         cli,
         ["--json", "serve", "--tags", "python,fastapi", "--models", "gpt-4.1"],
-        env={"FINDARC_API_KEY": "ENVKEY", "FINDARC_SERVER_URL": "http://env/v1"},
+        env={"FINDA_API_KEY": "ENVKEY", "FINDA_SERVER_URL": "http://env/v1"},
     )
     retire_result = runner.invoke(
         cli,
         ["--json", "retire"],
-        env={"FINDARC_API_KEY": "ENVKEY", "FINDARC_SERVER_URL": "http://env/v1"},
+        env={"FINDA_API_KEY": "ENVKEY", "FINDA_SERVER_URL": "http://env/v1"},
     )
 
     assert serve_result.exit_code == 0
@@ -462,13 +462,13 @@ def test_serve_and_retire_resolve_current_agent_with_env_overrides(monkeypatch):
 
 
 def test_query_tasks_uses_default_limit_of_five(monkeypatch):
-    from findarc import client as client_module
-    from findarc import config as config_module
+    from finda import client as client_module
+    from finda import config as config_module
 
     runner = CliRunner()
     StubClient.list_tasks_calls.clear()
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "load",
@@ -492,13 +492,13 @@ def test_query_tasks_uses_default_limit_of_five(monkeypatch):
 
 
 def test_query_tasks_pretty_prints_by_default(monkeypatch):
-    from findarc import client as client_module
-    from findarc import config as config_module
+    from finda import client as client_module
+    from finda import config as config_module
 
     runner = CliRunner()
     StubClient.list_tasks_calls.clear()
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "load",
@@ -521,13 +521,13 @@ def test_query_tasks_pretty_prints_by_default(monkeypatch):
 
 
 def test_query_tasks_accepts_custom_limit(monkeypatch):
-    from findarc import client as client_module
-    from findarc import config as config_module
+    from finda import client as client_module
+    from finda import config as config_module
 
     runner = CliRunner()
     StubClient.list_tasks_calls.clear()
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "load",
@@ -551,13 +551,13 @@ def test_query_tasks_accepts_custom_limit(monkeypatch):
 
 
 def test_query_tasks_accepts_cursor(monkeypatch):
-    from findarc import client as client_module
-    from findarc import config as config_module
+    from finda import client as client_module
+    from finda import config as config_module
 
     runner = CliRunner()
     StubClient.list_tasks_calls.clear()
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "load",
@@ -592,10 +592,10 @@ def test_query_tasks_accepts_cursor(monkeypatch):
 
 
 def test_sdk_list_tasks_rejects_limit_over_ten():
-    from findarc.client import FindarcClient
-    from findarc.config import Config
+    from finda.client import FindaClient
+    from finda.config import Config
 
-    client = FindarcClient(Config(api_key="KEY", server_url="http://server/v1"))
+    client = FindaClient(Config(api_key="KEY", server_url="http://server/v1"))
     try:
         with pytest.raises(ValueError, match="Task list limit cannot exceed 10"):
             client.list_tasks(limit=11)
@@ -604,10 +604,10 @@ def test_sdk_list_tasks_rejects_limit_over_ten():
 
 
 def test_sdk_iter_tasks_follows_next_cursor(monkeypatch):
-    from findarc.client import FindarcClient
-    from findarc.config import Config
+    from finda.client import FindaClient
+    from finda.config import Config
 
-    client = FindarcClient(Config(api_key="KEY", server_url="http://server/v1"))
+    client = FindaClient(Config(api_key="KEY", server_url="http://server/v1"))
     calls: list[tuple[str | None, int, str | None]] = []
 
     def fake_list_tasks(status=None, limit=5, cursor=None):
@@ -636,10 +636,10 @@ def test_sdk_iter_tasks_follows_next_cursor(monkeypatch):
 
 
 def test_sdk_get_status_rejects_limit_over_ten():
-    from findarc.client import FindarcClient
-    from findarc.config import Config
+    from finda.client import FindaClient
+    from finda.config import Config
 
-    client = FindarcClient(Config(api_key="KEY", server_url="http://server/v1"))
+    client = FindaClient(Config(api_key="KEY", server_url="http://server/v1"))
     try:
         with pytest.raises(ValueError, match="Status list limit cannot exceed 10"):
             client.get_status(limit=11)
@@ -648,10 +648,10 @@ def test_sdk_get_status_rejects_limit_over_ten():
 
 
 def test_sdk_get_status_passes_limit(monkeypatch):
-    from findarc.client import FindarcClient
-    from findarc.config import Config
+    from finda.client import FindaClient
+    from finda.config import Config
 
-    client = FindarcClient(Config(api_key="KEY", server_url="http://server/v1"))
+    client = FindaClient(Config(api_key="KEY", server_url="http://server/v1"))
     calls: list[tuple[str, str, dict]] = []
 
     def fake_request(method, path, **kwargs):
@@ -670,10 +670,10 @@ def test_sdk_get_status_passes_limit(monkeypatch):
 
 
 def test_sdk_submit_proposal_sends_markdown_content(monkeypatch):
-    from findarc.client import FindarcClient
-    from findarc.config import Config
+    from finda.client import FindaClient
+    from finda.config import Config
 
-    client = FindarcClient(Config(api_key="KEY", server_url="http://server/v1"))
+    client = FindaClient(Config(api_key="KEY", server_url="http://server/v1"))
     calls: list[tuple[str, str, dict]] = []
 
     def fake_request(method, path, **kwargs):
@@ -698,10 +698,10 @@ def test_sdk_submit_proposal_sends_markdown_content(monkeypatch):
 
 
 def test_sdk_update_proposal_sends_markdown_content(monkeypatch):
-    from findarc.client import FindarcClient
-    from findarc.config import Config
+    from finda.client import FindaClient
+    from finda.config import Config
 
-    client = FindarcClient(Config(api_key="KEY", server_url="http://server/v1"))
+    client = FindaClient(Config(api_key="KEY", server_url="http://server/v1"))
     calls: list[tuple[str, str, dict]] = []
 
     def fake_request(method, path, **kwargs):
@@ -726,15 +726,15 @@ def test_sdk_update_proposal_sends_markdown_content(monkeypatch):
 
 
 def test_submit_proposal_reads_markdown_file(monkeypatch, tmp_path):
-    from findarc import client as client_module
-    from findarc import config as config_module
+    from finda import client as client_module
+    from finda import config as config_module
 
     runner = CliRunner()
     StubClient.submit_proposal_calls.clear()
     proposal_path = tmp_path / "proposal.md"
     proposal_path.write_text("# Proposal\n\nDetailed plan.", encoding="utf-8")
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "load",
@@ -770,15 +770,15 @@ def test_submit_proposal_reads_markdown_file(monkeypatch, tmp_path):
 
 
 def test_update_proposal_reads_markdown_file(monkeypatch, tmp_path):
-    from findarc import client as client_module
-    from findarc import config as config_module
+    from finda import client as client_module
+    from finda import config as config_module
 
     runner = CliRunner()
     StubClient.update_proposal_calls.clear()
     proposal_path = tmp_path / "proposal.md"
     proposal_path.write_text("# Proposal\n\nDetailed update.", encoding="utf-8")
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "load",
@@ -814,13 +814,13 @@ def test_update_proposal_reads_markdown_file(monkeypatch, tmp_path):
 
 
 def test_show_proposal_fetches_proposal_by_id(monkeypatch):
-    from findarc import client as client_module
-    from findarc import config as config_module
+    from finda import client as client_module
+    from finda import config as config_module
 
     runner = CliRunner()
     StubClient.get_proposal_calls.clear()
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "load",
@@ -855,13 +855,13 @@ def test_show_proposal_fetches_proposal_by_id(monkeypatch):
 
 
 def test_withdraw_proposal_calls_client(monkeypatch):
-    from findarc import client as client_module
-    from findarc import config as config_module
+    from finda import client as client_module
+    from finda import config as config_module
 
     runner = CliRunner()
     StubClient.withdraw_proposal_calls.clear()
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "load",
@@ -899,14 +899,14 @@ def test_withdraw_proposal_calls_client(monkeypatch):
 
 
 def test_submit_proposal_requires_markdown_file(monkeypatch, tmp_path):
-    from findarc import client as client_module
-    from findarc import config as config_module
+    from finda import client as client_module
+    from finda import config as config_module
 
     runner = CliRunner()
     proposal_path = tmp_path / "proposal.txt"
     proposal_path.write_text("Detailed plan.", encoding="utf-8")
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "load",
@@ -938,14 +938,14 @@ def test_submit_proposal_requires_markdown_file(monkeypatch, tmp_path):
 
 
 def test_submit_proposal_rejects_empty_markdown_file(monkeypatch, tmp_path):
-    from findarc import client as client_module
-    from findarc import config as config_module
+    from finda import client as client_module
+    from finda import config as config_module
 
     runner = CliRunner()
     proposal_path = tmp_path / "proposal.md"
     proposal_path.write_text(" \n", encoding="utf-8")
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "load",
@@ -977,14 +977,14 @@ def test_submit_proposal_rejects_empty_markdown_file(monkeypatch, tmp_path):
 
 
 def test_submit_proposal_rejects_markdown_file_over_32kb(monkeypatch, tmp_path):
-    from findarc import client as client_module
-    from findarc import config as config_module
+    from finda import client as client_module
+    from finda import config as config_module
 
     runner = CliRunner()
     proposal_path = tmp_path / "proposal.md"
     proposal_path.write_text("a" * (32 * 1024 + 1), encoding="utf-8")
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "load",
@@ -1015,10 +1015,10 @@ def test_submit_proposal_rejects_markdown_file_over_32kb(monkeypatch, tmp_path):
     assert json.loads(result.stderr) == {"error": "Proposal markdown file cannot exceed 32 KB."}
 
 
-def test_cli_outputs_json_error_for_findarc_exceptions(monkeypatch):
-    from findarc import client as client_module
-    from findarc import config as config_module
-    from findarc.exceptions import APIError
+def test_cli_outputs_json_error_for_finda_exceptions(monkeypatch):
+    from finda import client as client_module
+    from finda import config as config_module
+    from finda.exceptions import APIError
 
     class ErrorClient(StubClient):
         def get_inbox(self, *, unread=False, task_id=None, limit=None, cursor=None):
@@ -1026,7 +1026,7 @@ def test_cli_outputs_json_error_for_findarc_exceptions(monkeypatch):
 
     runner = CliRunner()
 
-    monkeypatch.setattr(client_module, "FindarcClient", ErrorClient)
+    monkeypatch.setattr(client_module, "FindaClient", ErrorClient)
     monkeypatch.setattr(
         config_module.Config,
         "load",
@@ -1050,13 +1050,13 @@ def test_cli_outputs_json_error_for_findarc_exceptions(monkeypatch):
 
 
 def test_inbox_uses_default_count_of_ten(monkeypatch):
-    from findarc import client as client_module
-    from findarc import config as config_module
+    from finda import client as client_module
+    from finda import config as config_module
 
     runner = CliRunner()
     StubClient.get_inbox_calls.clear()
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "load",
@@ -1080,13 +1080,13 @@ def test_inbox_uses_default_count_of_ten(monkeypatch):
 
 
 def test_inbox_accepts_custom_count(monkeypatch):
-    from findarc import client as client_module
-    from findarc import config as config_module
+    from finda import client as client_module
+    from finda import config as config_module
 
     runner = CliRunner()
     StubClient.get_inbox_calls.clear()
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "load",
@@ -1119,10 +1119,10 @@ def test_inbox_accepts_custom_count(monkeypatch):
 
 
 def test_sdk_get_inbox_sends_limit_param(monkeypatch):
-    from findarc.client import FindarcClient
-    from findarc.config import Config
+    from finda.client import FindaClient
+    from finda.config import Config
 
-    client = FindarcClient(Config(api_key="KEY", server_url="http://server/v1"))
+    client = FindaClient(Config(api_key="KEY", server_url="http://server/v1"))
     captured: dict[str, object] = {}
 
     def fake_request(method: str, path: str, **kwargs):
@@ -1155,13 +1155,13 @@ def test_cli_version_option():
 
 
 def test_status_command_fetches_current_status(monkeypatch):
-    from findarc import client as client_module
-    from findarc import config as config_module
+    from finda import client as client_module
+    from finda import config as config_module
 
     runner = CliRunner()
     StubClient.get_status_calls.clear()
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "load",
@@ -1185,13 +1185,13 @@ def test_status_command_fetches_current_status(monkeypatch):
 
 
 def test_show_contract_fetches_contract_by_id(monkeypatch):
-    from findarc import client as client_module
-    from findarc import config as config_module
+    from finda import client as client_module
+    from finda import config as config_module
 
     runner = CliRunner()
     StubClient.get_contract_calls.clear()
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "load",
@@ -1296,12 +1296,12 @@ def test_download_artifact_help_uses_saved_to_option():
 
 
 def test_sdk_submit_delivery_rejects_non_zip_file(tmp_path):
-    from findarc.client import FindarcClient
-    from findarc.config import Config
+    from finda.client import FindaClient
+    from finda.config import Config
 
     artifact_path = tmp_path / "delivery.txt"
     artifact_path.write_text("not a zip", encoding="utf-8")
-    client = FindarcClient(Config(api_key="KEY", server_url="http://server/v1"))
+    client = FindaClient(Config(api_key="KEY", server_url="http://server/v1"))
     try:
         with pytest.raises(ValueError, match="Artifact file must be a .zip file"):
             client.submit_delivery("CT-1", content="Done", artifact_zip=artifact_path)
@@ -1310,12 +1310,12 @@ def test_sdk_submit_delivery_rejects_non_zip_file(tmp_path):
 
 
 def test_sdk_submit_delivery_rejects_zip_over_size_limit(tmp_path):
-    from findarc.client import FindarcClient
-    from findarc.config import Config
+    from finda.client import FindaClient
+    from finda.config import Config
 
     artifact_path = tmp_path / "delivery.zip"
     artifact_path.write_bytes(b"x" * ((32 * 1024 * 1024) + 1))
-    client = FindarcClient(Config(api_key="KEY", server_url="http://server/v1"))
+    client = FindaClient(Config(api_key="KEY", server_url="http://server/v1"))
     try:
         with pytest.raises(ValueError, match="Artifact zip file cannot exceed 32 MB\\."):
             client.submit_delivery("CT-1", content="Done", artifact_zip=artifact_path)
@@ -1324,8 +1324,8 @@ def test_sdk_submit_delivery_rejects_zip_over_size_limit(tmp_path):
 
 
 def test_sdk_download_artifact_saves_response_content(tmp_path):
-    from findarc.client import FindarcClient
-    from findarc.config import Config
+    from finda.client import FindaClient
+    from finda.config import Config
 
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/v1/contracts/submissions/SUB-1/artifact"
@@ -1335,7 +1335,7 @@ def test_sdk_download_artifact_saves_response_content(tmp_path):
             content=b"zip-bytes",
         )
 
-    client = FindarcClient(Config(api_key="KEY", server_url="http://server/v1"))
+    client = FindaClient(Config(api_key="KEY", server_url="http://server/v1"))
     client._http = httpx.Client(
         base_url="http://server/v1",
         headers={"Authorization": "Bearer KEY"},
@@ -1356,14 +1356,14 @@ def test_sdk_download_artifact_saves_response_content(tmp_path):
 
 
 def test_submit_uploads_zip_artifact(monkeypatch, tmp_path):
-    from findarc import client as client_module
-    from findarc import config as config_module
+    from finda import client as client_module
+    from finda import config as config_module
 
     runner = CliRunner()
     artifact_path = tmp_path / "delivery.zip"
     artifact_path.write_bytes(b"zip-bytes")
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "load",
@@ -1402,13 +1402,13 @@ def test_submit_uploads_zip_artifact(monkeypatch, tmp_path):
 
 
 def test_show_submissions_lists_contract_submissions(monkeypatch):
-    from findarc import client as client_module
-    from findarc import config as config_module
+    from finda import client as client_module
+    from finda import config as config_module
 
     runner = CliRunner()
     StubClient.list_submissions_calls.clear()
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "load",
@@ -1432,13 +1432,13 @@ def test_show_submissions_lists_contract_submissions(monkeypatch):
 
 
 def test_download_artifact_uses_default_filename(monkeypatch):
-    from findarc import client as client_module
-    from findarc import config as config_module
+    from finda import client as client_module
+    from finda import config as config_module
 
     runner = CliRunner()
     StubClient.download_artifact_calls.clear()
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "load",
@@ -1466,14 +1466,14 @@ def test_download_artifact_uses_default_filename(monkeypatch):
 
 
 def test_download_artifact_accepts_output_path(monkeypatch, tmp_path):
-    from findarc import client as client_module
-    from findarc import config as config_module
+    from finda import client as client_module
+    from finda import config as config_module
 
     runner = CliRunner()
     StubClient.download_artifact_calls.clear()
     output_path = tmp_path / "artifact.zip"
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "load",
@@ -1511,7 +1511,7 @@ def test_download_artifact_accepts_output_path(monkeypatch, tmp_path):
 
 
 def test_submit_rejects_zip_over_size_limit(monkeypatch, tmp_path):
-    from findarc import config as config_module
+    from finda import config as config_module
 
     runner = CliRunner()
     artifact_path = tmp_path / "delivery.zip"
@@ -1563,15 +1563,15 @@ def test_create_contract_help_uses_deliverables_option():
 
 
 def test_create_contract_reads_deliverables_markdown_file(monkeypatch, tmp_path):
-    from findarc import client as client_module
-    from findarc import config as config_module
+    from finda import client as client_module
+    from finda import config as config_module
 
     runner = CliRunner()
     StubClient.create_contract_calls.clear()
     deliverables_path = tmp_path / "deliverables.md"
     deliverables_path.write_text("# Deliverables\n\nShip the API and tests.", encoding="utf-8")
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "load",
@@ -1616,14 +1616,14 @@ def test_create_contract_reads_deliverables_markdown_file(monkeypatch, tmp_path)
 
 
 def test_create_contract_requires_markdown_deliverables_file(monkeypatch, tmp_path):
-    from findarc import client as client_module
-    from findarc import config as config_module
+    from finda import client as client_module
+    from finda import config as config_module
 
     runner = CliRunner()
     deliverables_path = tmp_path / "deliverables.txt"
     deliverables_path.write_text("Ship the API and tests.", encoding="utf-8")
 
-    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(client_module, "FindaClient", StubClient)
     monkeypatch.setattr(
         config_module.Config,
         "load",

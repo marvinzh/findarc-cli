@@ -1,14 +1,14 @@
-from .client import FindarcClient
+from .client import FindaClient
 from .config import Config
-from .exceptions import APIError, AuthError, ConfigError, FindarcError, NetworkError, NotFoundError
+from .exceptions import APIError, AuthError, ConfigError, FindaError, NetworkError, NotFoundError
 
 __version__ = "0.1.0"
 
 __all__ = [
     "__version__",
-    "FindarcClient",
+    "FindaClient",
     "Config",
-    "FindarcError",
+    "FindaError",
     "APIError",
     "AuthError",
     "ConfigError",

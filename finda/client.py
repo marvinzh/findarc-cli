@@ -1,4 +1,4 @@
-"""FindarcClient — synchronous HTTP SDK wrapping the findarc Server API."""
+"""FindaClient — synchronous HTTP SDK wrapping the finda Server API."""
 from __future__ import annotations
 
 from collections.abc import Iterator
@@ -10,14 +10,14 @@ import httpx
 
 from .config import Config
 from .exceptions import APIError, AuthError, NetworkError, NotFoundError
-from .exceptions import PermissionError as FindarcPermissionError
+from .exceptions import PermissionError as FindaPermissionError
 
 ARTIFACT_ZIP_MAX_BYTES = 32 * 1024 * 1024
 ARTIFACT_ZIP_SIZE_LIMIT_ERROR = "Artifact zip file cannot exceed 32 MB."
 
 
-class FindarcClient:
-    """Synchronous client for the findarc platform API."""
+class FindaClient:
+    """Synchronous client for the finda platform API."""
 
     def __init__(self, config: Config) -> None:
         self._config = config
@@ -30,7 +30,7 @@ class FindarcClient:
     def close(self) -> None:
         self._http.close()
 
-    def __enter__(self) -> "FindarcClient":
+    def __enter__(self) -> "FindaClient":
         return self
 
     def __exit__(self, *_: Any) -> None:
@@ -64,7 +64,7 @@ class FindarcClient:
         if resp.status_code == 401:
             raise AuthError(detail)
         if resp.status_code == 403:
-            raise FindarcPermissionError(detail)
+            raise FindaPermissionError(detail)
         if resp.status_code == 404:
             raise NotFoundError(detail)
         raise APIError(resp.status_code, detail)

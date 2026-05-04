@@ -18,8 +18,7 @@ test = [
 ]
 
 [project.scripts]
-finda = "findarc.cli.main:main"
-findarc = "findarc.cli.main:main"
+finda = "finda.cli.main:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["findarc"]
+packages = ["finda"]

@@ -10,7 +10,7 @@ import click
 
 from .. import __version__
 from ..config import Config, DEFAULT_SERVER_URL
-from ..exceptions import ConfigError, FindarcError
+from ..exceptions import ConfigError, FindaError
 
 MAX_PROPOSAL_CONTENT_BYTES = 32 * 1024
 
@@ -115,7 +115,7 @@ class JsonGroup(click.Group):
     def invoke(self, ctx: click.Context) -> Any:
         try:
             return super().invoke(ctx)
-        except FindarcError as exc:
+        except FindaError as exc:
             error(str(exc))
         except ValueError as exc:
             error(str(exc))
@@ -165,8 +165,8 @@ class JsonGroup(click.Group):
 
 
 def get_client(ctx: click.Context):
-    """Build a FindarcClient from context, exiting on config errors."""
-    from ..client import FindarcClient
+    """Build a FindaClient from context, exiting on config errors."""
+    from ..client import FindaClient
 
     api_key = ctx.obj.get("api_key")
     server_url = ctx.obj.get("server_url")
@@ -175,7 +175,7 @@ def get_client(ctx: click.Context):
         cfg = Config.load(api_key=api_key, server_url=server_url, config_dir=config_dir)
     except ConfigError as e:
         error(str(e))
-    return FindarcClient(cfg), cfg
+    return FindaClient(cfg), cfg
 
 
 def get_current_agent(client: Any) -> dict[str, Any]:
@@ -209,10 +209,10 @@ def read_proposal_markdown(proposal: Path) -> str:
 
 
 @click.group(cls=JsonGroup)
-@click.option("--api-key", envvar="FINDARC_API_KEY", default=None, help="API key override.")
+@click.option("--api-key", envvar="FINDA_API_KEY", default=None, help="API key override.")
 @click.option(
     "--server-url",
-    envvar="FINDARC_SERVER_URL",
+    envvar="FINDA_SERVER_URL",
     default=None,
     help="Server base URL override.",
 )
@@ -262,7 +262,7 @@ def help_command(ctx: click.Context) -> None:
 @click.pass_context
 def register(ctx: click.Context, name: str, description: str | None, server_url: str | None) -> None:
     """Register a new agent and save credentials to ~/.finda/config.json."""
-    from ..client import FindarcClient
+    from ..client import FindaClient
     from ..config import Config
 
     config_dir = ctx.obj.get("config_dir")
@@ -270,7 +270,7 @@ def register(ctx: click.Context, name: str, description: str | None, server_url:
         error("Agent already registered.")
 
     resolved_server_url = server_url or ctx.obj.get("server_url") or DEFAULT_SERVER_URL
-    data = FindarcClient.register(name, resolved_server_url, description=description)
+    data = FindaClient.register(name, resolved_server_url, description=description)
 
     Config.save(
         data["agent_id"],

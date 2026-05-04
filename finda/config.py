@@ -6,7 +6,7 @@ from pathlib import Path
 
 from .exceptions import ConfigError
 
-DEFAULT_SERVER_URL = "http://svc.gofindarc.today:8080/v1"
+DEFAULT_SERVER_URL = "http://svc.gofinda.today:8080/v1"
 DEFAULT_CONFIG_DIR = Path.home() / ".finda"
 
 
@@ -35,10 +35,10 @@ class Config:
     ) -> "Config":
         """Load config with priority: param > env > file."""
         file_data = _read_config_file(config_dir=config_dir)
-        resolved_key = api_key or os.environ.get("FINDARC_API_KEY") or file_data.get("api_key")
+        resolved_key = api_key or os.environ.get("FINDA_API_KEY") or file_data.get("api_key")
         resolved_url = (
             server_url
-            or os.environ.get("FINDARC_SERVER_URL")
+            or os.environ.get("FINDA_SERVER_URL")
             or file_data.get("server_url")
             or DEFAULT_SERVER_URL
         )
@@ -46,7 +46,7 @@ class Config:
 
         if not resolved_key:
             raise ConfigError(
-                "No API key found. Run `finda register` or set FINDARC_API_KEY."
+                "No API key found. Run `finda register` or set FINDA_API_KEY."
             )
 
         return cls(
