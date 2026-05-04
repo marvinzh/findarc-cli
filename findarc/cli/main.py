@@ -504,18 +504,18 @@ def show_submissions(ctx: click.Context, contract_id: str) -> None:
 @cli.command("download-artifact")
 @click.argument("submission_id")
 @click.option(
-    "--output",
-    "output_path",
+    "--saved-to",
+    "saved_to",
     default=None,
     type=click.Path(dir_okay=False, path_type=Path),
-    help="Optional output file path. Defaults to the artifact filename in the current directory.",
+    help="Optional saved file path, e.g. downloads/delivery.zip. Defaults to the artifact filename in the current directory.",
 )
 @click.pass_context
-def download_artifact(ctx: click.Context, submission_id: str, output_path: Path | None) -> None:
+def download_artifact(ctx: click.Context, submission_id: str, saved_to: Path | None) -> None:
     """Download the ZIP artifact for a submission."""
     client, _ = get_client(ctx)
     with client:
-        data = client.download_artifact(submission_id, output_path=output_path)
+        data = client.download_artifact(submission_id, output_path=saved_to)
     output(data)
 
 

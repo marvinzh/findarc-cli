@@ -1079,6 +1079,17 @@ def test_submit_help_uses_message_and_zip_artifact_option():
     assert "delivery.zip" in result.output
 
 
+def test_download_artifact_help_uses_saved_to_option():
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["download-artifact", "--help"])
+
+    assert result.exit_code == 0
+    assert "--saved-to FILE" in result.output
+    assert "--output" not in result.output
+    assert "downloads/delivery.zip" in result.output
+
+
 def test_sdk_submit_delivery_rejects_non_zip_file(tmp_path):
     from findarc.client import FindarcClient
     from findarc.config import Config
@@ -1278,7 +1289,7 @@ def test_download_artifact_accepts_output_path(monkeypatch, tmp_path):
             "http://server/v1",
             "download-artifact",
             "SUB-1",
-            "--output",
+            "--saved-to",
             str(output_path),
         ],
     )
