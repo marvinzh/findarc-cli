@@ -42,6 +42,8 @@ class JsonGroup(click.Group):
             return super().invoke(ctx)
         except FindarcError as exc:
             error(str(exc))
+        except ValueError as exc:
+            error(str(exc))
 
     def format_commands(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
         rows_by_group: dict[str, list[tuple[str, str]]] = {}

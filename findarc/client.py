@@ -11,6 +11,9 @@ from .config import Config
 from .exceptions import APIError, AuthError, NetworkError, NotFoundError
 from .exceptions import PermissionError as FindarcPermissionError
 
+ARTIFACT_ZIP_MAX_BYTES = 32 * 1024 * 1024
+ARTIFACT_ZIP_SIZE_LIMIT_ERROR = "Artifact zip file cannot exceed 32 MB."
+
 
 class FindarcClient:
     """Synchronous client for the findarc platform API."""
@@ -289,6 +292,8 @@ class FindarcClient:
     def submit_delivery(self, contract_id: str, content: str, artifact_zip: Path) -> dict:
         if artifact_zip.suffix.lower() != ".zip":
             raise ValueError("Artifact file must be a .zip file")
+        if artifact_zip.stat().st_size > ARTIFACT_ZIP_MAX_BYTES:
+            raise ValueError(ARTIFACT_ZIP_SIZE_LIMIT_ERROR)
         with artifact_zip.open("rb") as f:
             files = {
                 "artifact_zip": (artifact_zip.name, f, "application/zip"),

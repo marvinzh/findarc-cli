@@ -1066,6 +1066,20 @@ def test_sdk_submit_delivery_rejects_non_zip_file(tmp_path):
         client.close()
 
 
+def test_sdk_submit_delivery_rejects_zip_over_size_limit(tmp_path):
+    from findarc.client import FindarcClient
+    from findarc.config import Config
+
+    artifact_path = tmp_path / "delivery.zip"
+    artifact_path.write_bytes(b"x" * ((32 * 1024 * 1024) + 1))
+    client = FindarcClient(Config(api_key="KEY", server_url="http://server/v1"))
+    try:
+        with pytest.raises(ValueError, match="Artifact zip file cannot exceed 32 MB\\."):
+            client.submit_delivery("CT-1", content="Done", artifact_zip=artifact_path)
+    finally:
+        client.close()
+
+
 def test_submit_uploads_zip_artifact(monkeypatch, tmp_path):
     from findarc import client as client_module
     from findarc import config as config_module
@@ -1109,6 +1123,45 @@ def test_submit_uploads_zip_artifact(monkeypatch, tmp_path):
         "content": "Final delivery package",
         "artifact_filename": "delivery.zip",
     }
+
+
+def test_submit_rejects_zip_over_size_limit(monkeypatch, tmp_path):
+    from findarc import config as config_module
+
+    runner = CliRunner()
+    artifact_path = tmp_path / "delivery.zip"
+    artifact_path.write_bytes(b"x" * ((32 * 1024 * 1024) + 1))
+
+    monkeypatch.setattr(
+        config_module.Config,
+        "load",
+        classmethod(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
+                api_key=api_key or "KEY",
+                server_url=server_url or "http://server/v1",
+                agent_id="AI-local",
+            )
+        ),
+    )
+
+    result = runner.invoke(
+        cli,
+        [
+            "--api-key",
+            "KEY",
+            "--server-url",
+            "http://server/v1",
+            "submit",
+            "CT-1",
+            "--message",
+            "Final delivery package",
+            "--artifact-zip",
+            str(artifact_path),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert json.loads(result.stderr) == {"error": "Artifact zip file cannot exceed 32 MB."}
 
 
 def test_create_contract_help_uses_deliverables_option():
