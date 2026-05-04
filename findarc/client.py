@@ -338,6 +338,7 @@ class FindarcClient:
         *,
         unread: bool = False,
         task_id: str | None = None,
+        limit: int | None = None,
         cursor: str | None = None,
     ) -> dict:
         params: dict[str, Any] = {}
@@ -345,6 +346,8 @@ class FindarcClient:
             params["unread"] = "true"
         if task_id:
             params["task_id"] = task_id
+        if limit is not None:
+            params["limit"] = str(limit)
         if cursor:
             params["cursor"] = cursor
         return self._request("GET", "/mailbox", params=params)

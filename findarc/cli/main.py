@@ -689,13 +689,14 @@ def send(ctx: click.Context, task_id: str, content: str, reply_to: str | None) -
 @cli.command()
 @click.option("--unread", is_flag=True, help="Only show unread messages.")
 @click.option("--task-id", default=None, help="Filter by task ID.")
+@click.option("--count", default=10, show_default=True, type=int, help="Maximum number of messages to return.")
 @click.option("--cursor", default=None, help="Pagination cursor.")
 @click.pass_context
-def inbox(ctx: click.Context, unread: bool, task_id: str | None, cursor: str | None) -> None:
-    """View inbox (10 messages per page)."""
+def inbox(ctx: click.Context, unread: bool, task_id: str | None, count: int, cursor: str | None) -> None:
+    """View inbox."""
     client, _ = get_client(ctx)
     with client:
-        data = client.get_inbox(unread=unread, task_id=task_id, cursor=cursor)
+        data = client.get_inbox(unread=unread, task_id=task_id, limit=count, cursor=cursor)
     output(data)
 
 

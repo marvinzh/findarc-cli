@@ -20,6 +20,7 @@ class StubClient:
     get_contract_calls: list[str] = []
     list_submissions_calls: list[str] = []
     download_artifact_calls: list[tuple[str, Path | None]] = []
+    get_inbox_calls: list[tuple[bool, str | None, int | None, str | None]] = []
     withdraw_proposal_calls: list[tuple[str, str | None]] = []
     create_contract_calls: list[tuple[str, str, str, float | None]] = []
 
@@ -128,6 +129,26 @@ class StubClient:
             "submission_id": submission_id,
             "artifact_filename": "delivery.zip",
             "saved_to": str(output_path or Path("delivery.zip")),
+        }
+
+    def get_inbox(self, *, unread=False, task_id=None, limit=None, cursor=None) -> dict:
+        StubClient.get_inbox_calls.append((unread, task_id, limit, cursor))
+        return {
+            "total": 1,
+            "next_cursor": None,
+            "messages": [
+                {
+                    "message_id": "MSG-1",
+                    "type": "contract",
+                    "task_id": "TK-1",
+                    "proposal_id": None,
+                    "contract_id": "CT-1",
+                    "sender_agent_id": None,
+                    "content": "Contract ready",
+                    "read": False,
+                    "created_at": "2026-05-04T12:00:00Z",
+                }
+            ],
         }
 
     def reject_proposal(self, proposal_id: str, reason: str | None = None) -> dict:
@@ -1000,7 +1021,7 @@ def test_cli_outputs_json_error_for_findarc_exceptions(monkeypatch):
     from findarc.exceptions import APIError
 
     class ErrorClient(StubClient):
-        def get_inbox(self, *, unread=False, task_id=None, cursor=None):
+        def get_inbox(self, *, unread=False, task_id=None, limit=None, cursor=None):
             raise APIError(503, "service unavailable")
 
     runner = CliRunner()
@@ -1026,6 +1047,102 @@ def test_cli_outputs_json_error_for_findarc_exceptions(monkeypatch):
     assert result.exit_code == 1
     assert result.stdout == ""
     assert json.loads(result.stderr) == {"error": "HTTP 503: service unavailable"}
+
+
+def test_inbox_uses_default_count_of_ten(monkeypatch):
+    from findarc import client as client_module
+    from findarc import config as config_module
+
+    runner = CliRunner()
+    StubClient.get_inbox_calls.clear()
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(
+        config_module.Config,
+        "load",
+        classmethod(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
+                api_key=api_key or "KEY",
+                server_url=server_url or "http://server/v1",
+                agent_id="AI-local",
+            )
+        ),
+    )
+
+    result = runner.invoke(
+        cli,
+        ["--json", "--api-key", "KEY", "--server-url", "http://server/v1", "inbox"],
+    )
+
+    assert result.exit_code == 0
+    assert StubClient.get_inbox_calls == [(False, None, 10, None)]
+    assert json.loads(result.output)["total"] == 1
+
+
+def test_inbox_accepts_custom_count(monkeypatch):
+    from findarc import client as client_module
+    from findarc import config as config_module
+
+    runner = CliRunner()
+    StubClient.get_inbox_calls.clear()
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(
+        config_module.Config,
+        "load",
+        classmethod(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
+                api_key=api_key or "KEY",
+                server_url=server_url or "http://server/v1",
+                agent_id="AI-local",
+            )
+        ),
+    )
+
+    result = runner.invoke(
+        cli,
+        [
+            "--json",
+            "--api-key",
+            "KEY",
+            "--server-url",
+            "http://server/v1",
+            "inbox",
+            "--count",
+            "3",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert StubClient.get_inbox_calls == [(False, None, 3, None)]
+    assert json.loads(result.output)["total"] == 1
+
+
+def test_sdk_get_inbox_sends_limit_param(monkeypatch):
+    from findarc.client import FindarcClient
+    from findarc.config import Config
+
+    client = FindarcClient(Config(api_key="KEY", server_url="http://server/v1"))
+    captured: dict[str, object] = {}
+
+    def fake_request(method: str, path: str, **kwargs):
+        captured["method"] = method
+        captured["path"] = path
+        captured["params"] = kwargs.get("params")
+        return {"total": 0, "next_cursor": None, "messages": []}
+
+    try:
+        client._request = fake_request  # type: ignore[method-assign]
+        result = client.get_inbox(limit=4)
+    finally:
+        client.close()
+
+    assert captured == {
+        "method": "GET",
+        "path": "/mailbox",
+        "params": {"limit": "4"},
+    }
+    assert result == {"total": 0, "next_cursor": None, "messages": []}
 
 
 def test_cli_version_option():
