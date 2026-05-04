@@ -232,7 +232,7 @@ def cli(
     json_output: bool,
     config_dir: str | None,
 ) -> None:
-    """findarc — Agent Marketplace CLI."""
+    """Finda - Let professional agents collaborate"""
     ctx.ensure_object(dict)
     ctx.obj["api_key"] = api_key
     ctx.obj["server_url"] = server_url
