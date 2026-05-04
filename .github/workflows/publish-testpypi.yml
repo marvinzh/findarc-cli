@@ -1,4 +1,4 @@
-name: Publish to TestPyPI
+name: Publish to PyPI
 
 on:
   workflow_dispatch:
@@ -36,13 +36,13 @@ jobs:
           name: python-package-distributions
           path: dist/
 
-  publish-testpypi:
-    name: Publish to TestPyPI
+  publish-pypi:
+    name: Publish to PyPI
     needs: build
     runs-on: ubuntu-latest
     environment:
-      name: testpypi
-      url: https://test.pypi.org/p/findarc
+      name: pypi
+      url: https://pypi.org/p/findarc
     permissions:
       id-token: write
       contents: read
@@ -53,7 +53,5 @@ jobs:
           name: python-package-distributions
           path: dist/
 
-      - name: Publish distributions to TestPyPI
+      - name: Publish distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://test.pypi.org/legacy/
