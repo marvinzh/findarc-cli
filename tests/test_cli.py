@@ -253,9 +253,7 @@ def test_register_fails_when_finda_directory_already_exists(monkeypatch):
 
     assert result.exit_code == 1
     assert StubClient.register_calls == []
-    assert json.loads(result.stderr) == {
-        "error": "Agent already registered."
-    }
+    assert result.stderr == "Error: Agent already registered.\n"
 
 
 def test_register_uses_custom_config_directory_for_duplicate_check(monkeypatch, tmp_path):
@@ -271,6 +269,30 @@ def test_register_uses_custom_config_directory_for_duplicate_check(monkeypatch, 
     result = runner.invoke(
         cli,
         ["--config", str(config_dir), "register", "--name", "agent"],
+    )
+
+    assert result.exit_code == 1
+    assert StubClient.register_calls == []
+    assert result.stderr == "Error: Agent already registered.\n"
+
+
+def test_register_duplicate_uses_json_error_when_requested(monkeypatch):
+    from findarc import config as config_module
+    from findarc import client as client_module
+
+    runner = CliRunner()
+    StubClient.register_calls.clear()
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(
+        config_module.Config,
+        "registration_exists",
+        staticmethod(lambda config_dir=None: True),
+    )
+
+    result = runner.invoke(
+        cli,
+        ["--json", "register", "--name", "agent"],
     )
 
     assert result.exit_code == 1
@@ -300,7 +322,7 @@ def test_whoami_uses_authenticated_agent_not_local_agent_id(monkeypatch):
 
     result = runner.invoke(
         cli,
-        ["--api-key", "KEY", "--server-url", "http://server/v1", "whoami"],
+        ["--json", "--api-key", "KEY", "--server-url", "http://server/v1", "whoami"],
     )
 
     assert result.exit_code == 0
@@ -333,7 +355,7 @@ def test_whoami_loads_config_from_custom_directory(monkeypatch, tmp_path):
 
     result = runner.invoke(
         cli,
-        ["--config", str(config_dir), "whoami"],
+        ["--json", "--config", str(config_dir), "whoami"],
     )
 
     assert result.exit_code == 0
@@ -343,6 +365,35 @@ def test_whoami_loads_config_from_custom_directory(monkeypatch, tmp_path):
         "name": "Current Agent",
         "role": "requester",
     }
+
+
+def test_whoami_pretty_prints_by_default(monkeypatch):
+    from findarc import client as client_module
+    from findarc import config as config_module
+
+    runner = CliRunner()
+    StubClient.current_agent_calls = 0
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(
+        config_module.Config,
+        "load",
+        classmethod(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
+                api_key=api_key or "KEY",
+                server_url=server_url or "http://server/v1",
+                agent_id="AI-local",
+            )
+        ),
+    )
+
+    result = runner.invoke(
+        cli,
+        ["--api-key", "KEY", "--server-url", "http://server/v1", "whoami"],
+    )
+
+    assert result.exit_code == 0
+    assert result.output == "agent_id: AI-current\nname: Current Agent\nrole: requester\n"
 
 
 def test_serve_and_retire_resolve_current_agent_with_env_overrides(monkeypatch):
@@ -366,12 +417,12 @@ def test_serve_and_retire_resolve_current_agent_with_env_overrides(monkeypatch):
 
     serve_result = runner.invoke(
         cli,
-        ["serve", "--tags", "python,fastapi", "--models", "gpt-4.1"],
+        ["--json", "serve", "--tags", "python,fastapi", "--models", "gpt-4.1"],
         env={"FINDARC_API_KEY": "ENVKEY", "FINDARC_SERVER_URL": "http://env/v1"},
     )
     retire_result = runner.invoke(
         cli,
-        ["retire"],
+        ["--json", "retire"],
         env={"FINDARC_API_KEY": "ENVKEY", "FINDARC_SERVER_URL": "http://env/v1"},
     )
 
@@ -411,12 +462,41 @@ def test_query_tasks_uses_default_limit_of_five(monkeypatch):
 
     result = runner.invoke(
         cli,
-        ["--api-key", "KEY", "--server-url", "http://server/v1", "query-tasks"],
+        ["--json", "--api-key", "KEY", "--server-url", "http://server/v1", "query-tasks"],
     )
 
     assert result.exit_code == 0
     assert StubClient.list_tasks_calls == [("open", 5, None)]
     assert json.loads(result.output) == {"tasks": [], "limit": 5, "next_cursor": None}
+
+
+def test_query_tasks_pretty_prints_by_default(monkeypatch):
+    from findarc import client as client_module
+    from findarc import config as config_module
+
+    runner = CliRunner()
+    StubClient.list_tasks_calls.clear()
+
+    monkeypatch.setattr(client_module, "FindarcClient", StubClient)
+    monkeypatch.setattr(
+        config_module.Config,
+        "load",
+        classmethod(
+            lambda cls, api_key=None, server_url=None, config_dir=None: config_module.Config(
+                api_key=api_key or "KEY",
+                server_url=server_url or "http://server/v1",
+                agent_id="AI-local",
+            )
+        ),
+    )
+
+    result = runner.invoke(
+        cli,
+        ["--api-key", "KEY", "--server-url", "http://server/v1", "query-tasks"],
+    )
+
+    assert result.exit_code == 0
+    assert result.output == "tasks:\n  []\nlimit: 5\nnext_cursor: null\n"
 
 
 def test_query_tasks_accepts_custom_limit(monkeypatch):
@@ -441,7 +521,7 @@ def test_query_tasks_accepts_custom_limit(monkeypatch):
 
     result = runner.invoke(
         cli,
-        ["--api-key", "KEY", "--server-url", "http://server/v1", "query-tasks", "--limit", "9"],
+        ["--json", "--api-key", "KEY", "--server-url", "http://server/v1", "query-tasks", "--limit", "9"],
     )
 
     assert result.exit_code == 0
@@ -472,6 +552,7 @@ def test_query_tasks_accepts_cursor(monkeypatch):
     result = runner.invoke(
         cli,
         [
+            "--json",
             "--api-key",
             "KEY",
             "--server-url",
@@ -648,6 +729,7 @@ def test_submit_proposal_reads_markdown_file(monkeypatch, tmp_path):
     result = runner.invoke(
         cli,
         [
+            "--json",
             "--api-key",
             "KEY",
             "--server-url",
@@ -691,6 +773,7 @@ def test_update_proposal_reads_markdown_file(monkeypatch, tmp_path):
     result = runner.invoke(
         cli,
         [
+            "--json",
             "--api-key",
             "KEY",
             "--server-url",
@@ -732,6 +815,7 @@ def test_show_proposal_fetches_proposal_by_id(monkeypatch):
     result = runner.invoke(
         cli,
         [
+            "--json",
             "--api-key",
             "KEY",
             "--server-url",
@@ -772,6 +856,7 @@ def test_withdraw_proposal_calls_client(monkeypatch):
     result = runner.invoke(
         cli,
         [
+            "--json",
             "--api-key",
             "KEY",
             "--server-url",
@@ -816,6 +901,7 @@ def test_submit_proposal_requires_markdown_file(monkeypatch, tmp_path):
     result = runner.invoke(
         cli,
         [
+            "--json",
             "--api-key",
             "KEY",
             "--server-url",
@@ -854,6 +940,7 @@ def test_submit_proposal_rejects_empty_markdown_file(monkeypatch, tmp_path):
     result = runner.invoke(
         cli,
         [
+            "--json",
             "--api-key",
             "KEY",
             "--server-url",
@@ -892,6 +979,7 @@ def test_submit_proposal_rejects_markdown_file_over_32kb(monkeypatch, tmp_path):
     result = runner.invoke(
         cli,
         [
+            "--json",
             "--api-key",
             "KEY",
             "--server-url",
@@ -932,7 +1020,7 @@ def test_cli_outputs_json_error_for_findarc_exceptions(monkeypatch):
 
     result = runner.invoke(
         cli,
-        ["--api-key", "KEY", "--server-url", "http://server/v1", "inbox"],
+        ["--json", "--api-key", "KEY", "--server-url", "http://server/v1", "inbox"],
     )
 
     assert result.exit_code == 1
@@ -971,7 +1059,7 @@ def test_status_command_fetches_current_status(monkeypatch):
 
     result = runner.invoke(
         cli,
-        ["--api-key", "KEY", "--server-url", "http://server/v1", "status", "--limit", "3"],
+        ["--json", "--api-key", "KEY", "--server-url", "http://server/v1", "status", "--limit", "3"],
     )
 
     assert result.exit_code == 0
@@ -1001,7 +1089,7 @@ def test_show_contract_fetches_contract_by_id(monkeypatch):
 
     result = runner.invoke(
         cli,
-        ["--api-key", "KEY", "--server-url", "http://server/v1", "show-contract", "CT-1"],
+        ["--json", "--api-key", "KEY", "--server-url", "http://server/v1", "show-contract", "CT-1"],
     )
 
     assert result.exit_code == 0
@@ -1174,6 +1262,7 @@ def test_submit_uploads_zip_artifact(monkeypatch, tmp_path):
     result = runner.invoke(
         cli,
         [
+            "--json",
             "--api-key",
             "KEY",
             "--server-url",
@@ -1217,7 +1306,7 @@ def test_show_submissions_lists_contract_submissions(monkeypatch):
 
     result = runner.invoke(
         cli,
-        ["--api-key", "KEY", "--server-url", "http://server/v1", "show-submissions", "CT-1"],
+        ["--json", "--api-key", "KEY", "--server-url", "http://server/v1", "show-submissions", "CT-1"],
     )
 
     assert result.exit_code == 0
@@ -1247,7 +1336,7 @@ def test_download_artifact_uses_default_filename(monkeypatch):
 
     result = runner.invoke(
         cli,
-        ["--api-key", "KEY", "--server-url", "http://server/v1", "download-artifact", "SUB-1"],
+        ["--json", "--api-key", "KEY", "--server-url", "http://server/v1", "download-artifact", "SUB-1"],
     )
 
     assert result.exit_code == 0
@@ -1283,6 +1372,7 @@ def test_download_artifact_accepts_output_path(monkeypatch, tmp_path):
     result = runner.invoke(
         cli,
         [
+            "--json",
             "--api-key",
             "KEY",
             "--server-url",
@@ -1325,6 +1415,7 @@ def test_submit_rejects_zip_over_size_limit(monkeypatch, tmp_path):
     result = runner.invoke(
         cli,
         [
+            "--json",
             "--api-key",
             "KEY",
             "--server-url",
@@ -1379,6 +1470,7 @@ def test_create_contract_reads_deliverables_markdown_file(monkeypatch, tmp_path)
     result = runner.invoke(
         cli,
         [
+            "--json",
             "--api-key",
             "KEY",
             "--server-url",
@@ -1430,6 +1522,7 @@ def test_create_contract_requires_markdown_deliverables_file(monkeypatch, tmp_pa
     result = runner.invoke(
         cli,
         [
+            "--json",
             "--api-key",
             "KEY",
             "--server-url",

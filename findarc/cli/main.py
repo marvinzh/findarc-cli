@@ -24,14 +24,89 @@ COMMAND_GROUPS = {
 }
 
 
+def use_json_output() -> bool:
+    ctx = click.get_current_context(silent=True)
+    if ctx is not None and ctx.obj is not None:
+        return bool(ctx.obj.get("json_output"))
+    return "--json" in sys.argv
+
+
 def output(data: Any) -> None:
-    """Print data as pretty JSON to stdout."""
-    click.echo(json.dumps(data, ensure_ascii=False, indent=2))
+    """Print data in pretty text by default, or JSON when requested."""
+    if use_json_output():
+        click.echo(json.dumps(data, ensure_ascii=False, indent=2))
+        return
+    click.echo(format_pretty(data))
 
 
 def error(msg: str) -> None:
-    click.echo(json.dumps({"error": msg}, ensure_ascii=False), err=True)
+    if use_json_output():
+        click.echo(json.dumps({"error": msg}, ensure_ascii=False), err=True)
+    else:
+        click.echo(f"Error: {msg}", err=True)
     sys.exit(1)
+
+
+def format_pretty(data: Any) -> str:
+    return "\n".join(_format_pretty_lines(data))
+
+
+def _format_pretty_lines(data: Any, indent: int = 0) -> list[str]:
+    prefix = "  " * indent
+    if isinstance(data, dict):
+        if not data:
+            return [f"{prefix}{{}}"]
+        lines: list[str] = []
+        for key, value in data.items():
+            lines.extend(_format_mapping_entry(str(key), value, indent))
+        return lines
+    if isinstance(data, list):
+        if not data:
+            return [f"{prefix}[]"]
+        lines = []
+        for item in data:
+            lines.extend(_format_sequence_item(item, indent))
+        return lines
+    return [f"{prefix}{_format_scalar(data)}"]
+
+
+def _format_mapping_entry(key: str, value: Any, indent: int) -> list[str]:
+    prefix = "  " * indent
+    if isinstance(value, str) and "\n" in value:
+        lines = [f"{prefix}{key}: |"]
+        lines.extend(_format_multiline_string(value, indent + 1))
+        return lines
+    if isinstance(value, (dict, list)):
+        lines = [f"{prefix}{key}:"]
+        lines.extend(_format_pretty_lines(value, indent + 1))
+        return lines
+    return [f"{prefix}{key}: {_format_scalar(value)}"]
+
+
+def _format_sequence_item(value: Any, indent: int) -> list[str]:
+    prefix = "  " * indent
+    if isinstance(value, str) and "\n" in value:
+        lines = [f"{prefix}- |"]
+        lines.extend(_format_multiline_string(value, indent + 1))
+        return lines
+    if isinstance(value, (dict, list)):
+        lines = [f"{prefix}-"]
+        lines.extend(_format_pretty_lines(value, indent + 1))
+        return lines
+    return [f"{prefix}- {_format_scalar(value)}"]
+
+
+def _format_multiline_string(value: str, indent: int) -> list[str]:
+    prefix = "  " * indent
+    return [f"{prefix}{line}" for line in value.splitlines()]
+
+
+def _format_scalar(value: Any) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
 
 
 class JsonGroup(click.Group):
@@ -141,6 +216,7 @@ def read_proposal_markdown(proposal: Path) -> str:
     default=None,
     help="Server base URL override.",
 )
+@click.option("--json", "json_output", is_flag=True, help="Preserve JSON output.")
 @click.option(
     "--config",
     "config_dir",
@@ -153,12 +229,14 @@ def cli(
     ctx: click.Context,
     api_key: str | None,
     server_url: str | None,
+    json_output: bool,
     config_dir: str | None,
 ) -> None:
     """findarc — Agent Marketplace CLI."""
     ctx.ensure_object(dict)
     ctx.obj["api_key"] = api_key
     ctx.obj["server_url"] = server_url
+    ctx.obj["json_output"] = json_output
     ctx.obj["config_dir"] = config_dir
 
 
