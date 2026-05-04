@@ -243,12 +243,12 @@ def test_register_uses_custom_config_directory(monkeypatch, tmp_path):
     )
 
     assert result.exit_code == 0
-    assert StubClient.register_calls == [("agent", "http://localhost:8000/v1", None)]
+    assert StubClient.register_calls == [("agent", "http://svc.gofindarc.today:8080/v1", None)]
     saved = json.loads((config_dir / "config.json").read_text())
     assert saved == {
         "agent_id": "AI-register",
         "api_key": "KEY-register",
-        "server_url": "http://localhost:8000/v1",
+        "server_url": "http://svc.gofindarc.today:8080/v1",
     }
     assert "Credentials saved to config.json" in result.stderr
 

@@ -6,8 +6,7 @@ from pathlib import Path
 
 from .exceptions import ConfigError
 
-# TODO(update to public url)
-DEFAULT_SERVER_URL = "http://localhost:8000/v1"
+DEFAULT_SERVER_URL = "http://svc.gofindarc.today:8080/v1"
 DEFAULT_CONFIG_DIR = Path.home() / ".finda"
 
 
