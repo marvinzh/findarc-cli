@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/finda
+      url: https://pypi.org/project/finda-cli-beta/
     permissions:
       id-token: write
       contents: read
